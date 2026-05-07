@@ -1,0 +1,1 @@
+{"query_id":"example_01","query":"What does the document say about onboarding new customers?","lang":"en","audio":"audio/en_mono_01.wav","doc_set":["docs/sample_en.pdf"],"expected_citations":[{"source":"docs/sample_en.pdf","page":2,"text_contains":"onboarding"}],"expected_answer":"(Replace with the expected answer based on your sample docs.)"}

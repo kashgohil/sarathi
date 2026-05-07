@@ -1,0 +1,9 @@
+# Don't commit the actual eval corpus — large, sometimes private.
+audio/
+docs/
+empty_docs/
+
+# But do commit the manifests and templates.
+!manifest.json
+!qa.jsonl
+!README.md

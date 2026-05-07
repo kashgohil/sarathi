@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "audio_clips": [
+    {
+      "id": "gu_mono_01",
+      "audio": "audio/gu_mono_01.wav",
+      "lang": "gu",
+      "duration_s": 0,
+      "speakers": 1,
+      "source": "describe origin (e.g., self-recorded, public-domain clip, etc.)",
+      "reference": "નમસ્તે દુનિયા…  (paste hand-transcribed Gujarati reference here)"
+    },
+    {
+      "id": "en_mono_01",
+      "audio": "audio/en_mono_01.wav",
+      "lang": "en",
+      "duration_s": 0,
+      "speakers": 1,
+      "source": "describe origin",
+      "reference": "Hello world… (paste hand-transcribed English reference here)"
+    },
+    {
+      "id": "gu_en_codeswitch_01",
+      "audio": "audio/gu_en_codeswitch_01.wav",
+      "lang": "mixed",
+      "duration_s": 0,
+      "speakers": 1,
+      "source": "describe origin",
+      "reference": ""
+    }
+  ]
+}
