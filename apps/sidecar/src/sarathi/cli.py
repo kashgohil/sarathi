@@ -26,7 +26,7 @@ from sarathi.config import Config, load_config
 from sarathi.ingest.lang_id import detect_lang
 from sarathi.ingest.pdf import extract_pdf
 from sarathi.ingest.types import Block
-from sarathi.textproc.chunk import Chunk, ChunkConfig, chunk_text
+from sarathi.textproc.chunk import ChunkConfig, chunk_text
 from sarathi.textproc.normalize import normalize
 
 app = typer.Typer(
@@ -158,56 +158,15 @@ def run(
 ):
     """One-shot end-to-end: ingest → transcribe → retrieve → answer.
 
-    M1 stub: ingest + chunking are real; ASR/retrieve/answer return placeholders
-    so the eval harness can run against this binary today.
+    Stages that require the `[ml]` extras (whisper, BGE-M3, MLX, paddle) fall
+    back to stubs when those deps aren't installed, so the JSON shape stays
+    valid for the eval harness either way. The `stub_stages` field lists what
+    fell back so you can see exactly what's wired in.
     """
+    from sarathi.pipeline import run as run_pipeline
+
     cfg = load_config(config_path)
-    chunk_cfg = _chunk_config_from(cfg)
-
-    # 1. Ingest + normalize + chunk all docs.
-    chunks: list[Chunk] = []
-    for path in _resolve_inputs(docs):
-        for block in _ingest_path(path, fasttext_model=None):
-            if not block.text:
-                continue
-            text = normalize(block.text, lang=block.lang)
-            for c in chunk_text(
-                text,
-                lang=block.lang,
-                config=chunk_cfg,
-                metadata={
-                    "source": block.source,
-                    "page": block.page,
-                    "is_ocr": block.is_ocr,
-                },
-            ):
-                chunks.append(c)
-
-    # 2. ASR — stub. Real impl (faster-whisper) lands when [ml] extras are installed.
-    transcript = {
-        "text": "",
-        "segments": [],
-        "language": None,
-        "stub": True,
-    }
-
-    # 3. Retrieval — stub. Real impl (LanceDB + BGE-M3) lands when [ml] extras land.
-    citations = [
-        {
-            "text": c.text,
-            "lang": c.lang,
-            "source": c.metadata.get("source"),
-            "page": c.metadata.get("page"),
-            "score": 0.0,
-        }
-        for c in chunks[:5]
-    ]
-
-    # 4. Answer — stub.
-    answer = {
-        "text": "(stubbed answer; install the [ml] extras and complete M1 to enable.)",
-        "stub": True,
-    }
+    result = run_pipeline(audio=audio, docs=docs, cfg=cfg, question=question)
 
     _emit(
         {
@@ -215,10 +174,11 @@ def run(
             "audio": str(audio.resolve()),
             "docs": str(docs.resolve()),
             "question": question,
-            "transcript": transcript,
-            "citations": citations,
-            "answer": answer,
-            "chunk_count": len(chunks),
+            "transcript": result.transcript,
+            "citations": result.citations,
+            "answer": result.answer,
+            "chunk_count": result.chunk_count,
+            "stub_stages": result.stub_stages,
         }
     )
 
