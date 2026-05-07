@@ -1,0 +1,57 @@
+# Sarathi sidecar default configuration.
+# Override by passing --config <path> or via env var SARATHI_CONFIG.
+
+[paths]
+# All paths resolved relative to the user data dir (platformdirs) unless absolute.
+data_dir   = "data"        # transcripts.db, lance/, ingested doc cache
+models_dir = "models"      # whisper, bge-m3, reranker, llm, fasttext, paddleocr
+cache_dir  = "cache"
+
+[chunk]
+target_tokens   = 400      # 350-450 sweet spot
+max_tokens      = 512      # hard cap (BGE-M3 max useful)
+overlap_tokens  = 50
+overlap_sentences = 1      # whichever yields larger overlap wins
+embed_tokenizer = "BAAI/bge-m3"
+
+[asr]
+model = "large-v3"
+compute_type = "int8_float16"     # M-series default
+language = ""                     # empty = auto (en/gu)
+condition_on_previous_text = false
+no_speech_threshold = 0.6
+
+[vad]
+model = "silero_vad"
+min_silence_ms = 400
+max_segment_s = 28
+overlap_s = 1.5
+
+[embed]
+model = "BAAI/bge-m3"
+hybrid = true                     # dense + sparse
+
+[rerank]
+model = "BAAI/bge-reranker-v2-m3"
+enabled = true
+top_k_in = 20
+top_k_out = 5
+
+[llm]
+model = "mlx-community/Qwen2.5-14B-Instruct-4bit"
+max_new_tokens = 512
+temperature = 0.2
+
+[retention]
+transcripts_days = 15
+docs_persist = true
+
+[retrieve]
+dense_k = 30
+sparse_k = 30
+rrf_k = 60                        # RRF constant
+final_k = 8
+
+[lang_id]
+model = "lid.176.bin"
+fallback_lang = "en"
