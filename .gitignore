@@ -1,0 +1,46 @@
+# Node
+node_modules/
+.pnpm-store/
+dist/
+build/
+.next/
+.astro/
+.turbo/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.python-version
+*.egg-info/
+
+# Rust / Tauri
+target/
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# Models & data (large binaries)
+models/
+*.gguf
+*.onnx
+*.mlpackage/
+*.safetensors
+
+# Local data
+*.db
+*.sqlite
+*.sqlite3
+data/
+transcripts/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Env
+.env
+.env.local
+.env.*.local
