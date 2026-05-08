@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#E5A752" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Outer iron tire -->
+  <circle cx="32" cy="32" r="30" stroke-width="2"/>
+  <!-- Felloe -->
+  <circle cx="32" cy="32" r="26.5" stroke-width="0.9"/>
+  <!-- 12 spokes -->
+  <line x1="40.8"  y1="32"     x2="58.10" y2="32"     stroke-width="0.9"/>
+  <line x1="39.62" y1="36.40"  x2="54.60" y2="45.05"  stroke-width="0.9"/>
+  <line x1="36.40" y1="39.62"  x2="45.05" y2="54.60"  stroke-width="0.9"/>
+  <line x1="32"    y1="40.80"  x2="32"    y2="58.10"  stroke-width="0.9"/>
+  <line x1="27.60" y1="39.62"  x2="18.95" y2="54.60"  stroke-width="0.9"/>
+  <line x1="24.38" y1="36.40"  x2="9.40"  y2="45.05"  stroke-width="0.9"/>
+  <line x1="23.20" y1="32"     x2="5.90"  y2="32"     stroke-width="0.9"/>
+  <line x1="24.38" y1="27.60"  x2="9.40"  y2="18.95"  stroke-width="0.9"/>
+  <line x1="27.60" y1="24.38"  x2="18.95" y2="9.40"   stroke-width="0.9"/>
+  <line x1="32"    y1="23.20"  x2="32"    y2="5.90"   stroke-width="0.9"/>
+  <line x1="36.40" y1="24.38"  x2="45.05" y2="9.40"   stroke-width="0.9"/>
+  <line x1="39.62" y1="27.60"  x2="54.60" y2="18.95"  stroke-width="0.9"/>
+  <!-- Hub: outer + inner band -->
+  <circle cx="32" cy="32" r="9"   stroke-width="1.4"/>
+  <circle cx="32" cy="32" r="6.5" stroke-width="0.7"/>
+  <!-- Hub disc (filled) -->
+  <circle cx="32" cy="32" r="3.6" fill="#E5A752" stroke="none"/>
+</svg>
