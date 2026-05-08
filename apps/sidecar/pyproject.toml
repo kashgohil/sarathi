@@ -37,12 +37,15 @@ ml = [
     "mlx-lm>=0.18",
     "paddleocr>=2.7",
     "paddlepaddle>=2.6",
+    "pyannote.audio>=3.3",
+    "torch>=2.2",
 ]
 dev = [
     "pytest>=8.2",
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.11",
+    "pyinstaller>=6.10",
 ]
 
 [project.scripts]

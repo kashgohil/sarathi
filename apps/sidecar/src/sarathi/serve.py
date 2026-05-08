@@ -43,6 +43,7 @@ from __future__ import annotations
 import base64
 import json
 import sys
+import threading
 import time
 from collections.abc import Iterable
 from contextlib import contextmanager
@@ -58,10 +59,16 @@ from sarathi.qdetect.heuristic import detect_question_heuristic
 from sarathi.qdetect.rolling import RollingWindow, Utterance
 
 
+# Stdout is shared between the main thread (command handler) and the vacuum
+# background thread. NDJSON writes must be atomic per-line.
+_STDOUT_LOCK = threading.Lock()
+
+
 def _emit(obj: dict) -> None:
-    sys.stdout.write(json.dumps(obj, ensure_ascii=False))
-    sys.stdout.write("\n")
-    sys.stdout.flush()
+    line = json.dumps(obj, ensure_ascii=False) + "\n"
+    with _STDOUT_LOCK:
+        sys.stdout.write(line)
+        sys.stdout.flush()
 
 
 def _err(msg: str, **extra) -> None:
@@ -73,6 +80,25 @@ def _err(msg: str, **extra) -> None:
 # ---------------------------------------------------------------------------#
 
 
+def _try_make_diarizer(cfg: Config):
+    """Return a Diarizer or None. Disabled by config or missing deps both
+    return None silently — diarization is opt-in."""
+    diar_cfg = cfg.section("diarize") if hasattr(cfg, "section") else {}
+    if not diar_cfg.get("enabled", False):
+        return None
+    try:
+        from sarathi.asr.diarize import Diarizer
+    except RuntimeError:
+        return None
+    try:
+        return Diarizer(
+            model=diar_cfg.get("model", "pyannote/speaker-diarization-3.1"),
+            min_duration_s=diar_cfg.get("min_duration_s", 1.0),
+        )
+    except RuntimeError:
+        return None
+
+
 def _try_make_transcriber(cfg: Config):
     try:
         from sarathi.asr.streaming import StreamingTranscriber
@@ -82,6 +108,7 @@ def _try_make_transcriber(cfg: Config):
 
     asr = cfg.section("asr")
     vad = cfg.section("vad")
+    diarizer = _try_make_diarizer(cfg)
     try:
         t = StreamingTranscriber(
             vad=VadConfig(
@@ -95,6 +122,7 @@ def _try_make_transcriber(cfg: Config):
             language=(asr.get("language") or None),
             no_speech_threshold=asr.get("no_speech_threshold", 0.6),
             condition_on_previous_text=asr.get("condition_on_previous_text", False),
+            diarizer=diarizer,
         )
     except RuntimeError as e:
         return None, str(e)
@@ -235,6 +263,8 @@ def _handle_utterances(state: ServeState, segs: Iterable, *, store) -> None:
         )
         state.rolling.add(u)
 
+        speaker_id = getattr(seg, "speaker_id", None)
+
         # Persist to SQLite if store is available.
         if store is not None and state.session_id:
             try:
@@ -242,7 +272,7 @@ def _handle_utterances(state: ServeState, segs: Iterable, *, store) -> None:
                     session_id=state.session_id,
                     text=seg.text,
                     lang=seg.language,
-                    speaker_id=None,
+                    speaker_id=speaker_id,
                     start_s=seg.start_s,
                     end_s=seg.end_s,
                 )
@@ -256,6 +286,7 @@ def _handle_utterances(state: ServeState, segs: Iterable, *, store) -> None:
                 "start_s": seg.start_s,
                 "end_s": seg.end_s,
                 "lang": seg.language,
+                "speaker_id": speaker_id,
                 "session_id": state.session_id,
             }
         )
@@ -372,6 +403,52 @@ def _ingest_path_event(path: Path, cfg: Config, store) -> None:
 
 
 # ---------------------------------------------------------------------------#
+# Retention vacuum
+# ---------------------------------------------------------------------------#
+
+
+def _start_vacuum_thread(
+    store, retention_days: int, interval_s: float, stop_event: threading.Event
+) -> threading.Thread:
+    """Background thread: every `interval_s`, delete transcripts older than
+    `retention_days`. Emits a `vacuumed` event with the deleted row count.
+
+    A separate SQLite connection is created inside the thread because
+    sqlite3 connections are not safe to share across threads by default.
+    """
+
+    def loop() -> None:
+        # Run a "boot vacuum" first — useful when the app has been closed for
+        # longer than the retention window and starts up with stale rows.
+        if not stop_event.is_set():
+            _vacuum_once(store, retention_days)
+
+        while not stop_event.wait(interval_s):
+            _vacuum_once(store, retention_days)
+
+    t = threading.Thread(target=loop, name="sarathi-vacuum", daemon=True)
+    t.start()
+    return t
+
+
+def _vacuum_once(store, retention_days: int) -> None:
+    if store is None:
+        return
+    try:
+        deleted = store.vacuum_old(retention_days)
+        if deleted > 0:
+            _emit(
+                {
+                    "type": "vacuumed",
+                    "deleted_transcripts": int(deleted),
+                    "retention_days": int(retention_days),
+                }
+            )
+    except Exception as e:
+        _err(f"vacuum failed: {e}")
+
+
+# ---------------------------------------------------------------------------#
 # Main loop
 # ---------------------------------------------------------------------------#
 
@@ -392,7 +469,29 @@ def serve_loop(cfg: Config) -> int:
         }
     )
 
+    retention_days = int(cfg.section("retention").get("transcripts_days", 15))
+    # Run vacuum every 6 hours during a long-lived session. For shorter
+    # sessions the boot vacuum on each `serve` start handles staleness.
+    vacuum_interval_s = float(
+        cfg.section("retention").get("vacuum_interval_s", 6 * 60 * 60)
+    )
+    stop_vacuum = threading.Event()
+
     with _open_store(cfg) as store:
+        # SQLite connections aren't shareable across threads — the vacuum
+        # thread opens its own using the same db path.
+        from sarathi.store.sqlite import Store as _Store
+
+        if store is not None:
+            paths = cfg.section("paths")
+            db_path = cfg.resolve_path(paths.get("data_dir", "data")) / "metadata.db"
+            vacuum_store = _Store(db_path)
+            _start_vacuum_thread(
+                vacuum_store, retention_days, vacuum_interval_s, stop_vacuum
+            )
+        else:
+            vacuum_store = None
+
         for line in sys.stdin:
             line = line.strip()
             if not line:
@@ -410,6 +509,12 @@ def serve_loop(cfg: Config) -> int:
                         _handle_utterances(state, transcriber.flush(), store=store)
                     if state.session_id and store is not None:
                         store.end_session(state.session_id)
+                    stop_vacuum.set()
+                    if vacuum_store is not None:
+                        try:
+                            vacuum_store.close()
+                        except Exception:
+                            pass
                     return 0
 
                 if ctype == "audio":

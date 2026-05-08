@@ -15,8 +15,11 @@ overlap_sentences = 1      # whichever yields larger overlap wins
 embed_tokenizer = "BAAI/bge-m3"
 
 [asr]
-model = "large-v3"
-compute_type = "int8_float16"     # M-series default
+# large-v3-turbo: same architecture, faster decoder, near-equal Gujarati WER.
+# int8 alone (no float16) cuts the on-disk size roughly in half vs int8_float16.
+# Override to "large-v3" + "int8_float16" if you want the original quality.
+model = "large-v3-turbo"
+compute_type = "int8"
 language = ""                     # empty = auto (en/gu)
 condition_on_previous_text = false
 no_speech_threshold = 0.6
@@ -32,19 +35,30 @@ model = "BAAI/bge-m3"
 hybrid = true                     # dense + sparse
 
 [rerank]
+# Off by default to avoid the 1.1 GB download. Hybrid RRF over dense+sparse
+# already gives strong retrieval; the reranker is a quality knob, enable it
+# if eval shows recall@5 falling short.
 model = "BAAI/bge-reranker-v2-m3"
-enabled = true
+enabled = false
 top_k_in = 20
 top_k_out = 5
 
 [llm]
-model = "mlx-community/Qwen2.5-14B-Instruct-4bit"
+# Qwen2.5-7B is the sweet spot on M-series for English answer quality.
+# Qwen2.5-14B-4bit (~8 GB) gives one tier better answers if you have the disk.
+model = "mlx-community/Qwen2.5-7B-Instruct-4bit"
 max_new_tokens = 512
 temperature = 0.2
 
 [retention]
 transcripts_days = 15
 docs_persist = true
+vacuum_interval_s = 21600    # 6 hours
+
+[diarize]
+enabled = false              # opt-in; needs HF_TOKEN + accepted license
+model = "pyannote/speaker-diarization-3.1"
+min_duration_s = 1.0
 
 [retrieve]
 dense_k = 30
