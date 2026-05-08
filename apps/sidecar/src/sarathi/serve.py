@@ -379,6 +379,95 @@ def _open_store(cfg: Config):
         store.close()
 
 
+# ---------------------------------------------------------------------------#
+# Preload (first-run setup)
+# ---------------------------------------------------------------------------#
+
+
+def _preload(cfg: Config, components: list[str]) -> dict[str, bool]:
+    """Trigger lazy loads for the requested components. The loaders emit
+    `model_loading` / `model_loaded` events themselves, so the frontend
+    gets per-component progress for free.
+
+    Failures don't propagate — each component is wrapped so a missing dep
+    or bad download in one doesn't block the others. Returns a per-component
+    success/failure map.
+    """
+    results: dict[str, bool] = {}
+
+    if "asr" in components:
+        results["asr"] = _warmup_asr(cfg)
+    if "embed" in components:
+        results["embed"] = _warmup_embed(cfg)
+    if "llm" in components:
+        results["llm"] = _warmup_llm(cfg)
+    return results
+
+
+def _warmup_asr(cfg: Config) -> bool:
+    """Boot the streaming transcriber, which loads silero-vad and whisper.
+    Both emit their own `model_loading` events under `asr.vad` / `asr.whisper`.
+    """
+    try:
+        from sarathi.asr.streaming import StreamingTranscriber
+        from sarathi.asr.vad import VadConfig
+
+        asr = cfg.section("asr")
+        vad = cfg.section("vad")
+        StreamingTranscriber(
+            vad=VadConfig(
+                threshold=0.5,
+                min_silence_ms=vad.get("min_silence_ms", 400),
+                max_segment_s=vad.get("max_segment_s", 28),
+                pad_ms=int(vad.get("overlap_s", 1.5) * 1000 / 2),
+            ),
+            model=asr.get("model", "large-v3-turbo"),
+            compute_type=asr.get("compute_type", "int8"),
+            language=(asr.get("language") or None),
+            no_speech_threshold=asr.get("no_speech_threshold", 0.6),
+            condition_on_previous_text=asr.get("condition_on_previous_text", False),
+        )
+        return True
+    except Exception as e:
+        _err(f"asr warmup failed: {e}")
+        return False
+
+
+def _warmup_embed(cfg: Config) -> bool:
+    try:
+        from sarathi.embed.bge_m3 import embed_query
+
+        embed_query(
+            "warmup",
+            model=cfg.section("embed").get("model", "BAAI/bge-m3"),
+        )
+        return True
+    except Exception as e:
+        _err(f"embed warmup failed: {e}")
+        return False
+
+
+def _warmup_llm(cfg: Config) -> bool:
+    """Load the MLX LLM with a 1-token generation to force model-mmap +
+    weight upload to the GPU. The actual output is discarded."""
+    try:
+        from sarathi.llm.mlx_runner import generate
+
+        generate(
+            system="ready",
+            user="ready",
+            model=cfg.section("llm").get(
+                "model", "mlx-community/Qwen2.5-7B-Instruct-4bit"
+            ),
+            max_new_tokens=1,
+            temperature=0.0,
+        )
+        return True
+    except Exception as e:
+        _err(f"llm warmup failed: {e}")
+        return False
+
+
 def _ingest_path_event(path: Path, cfg: Config, store) -> None:
     """Re-use the file-based pipeline's ingest+embed+index step."""
     try:
@@ -538,6 +627,17 @@ def serve_loop(cfg: Config) -> int:
                         continue
                     _trigger_retrieve_and_answer(
                         state, query=q, question=q, trigger="question"
+                    )
+
+                elif ctype == "preload":
+                    components = cmd.get("components") or ["asr", "embed", "llm"]
+                    summary = _preload(cfg, components)
+                    _emit(
+                        {
+                            "type": "preload_done",
+                            "components": summary,
+                            "ok": all(summary.values()),
+                        }
                     )
 
                 elif ctype == "session":
