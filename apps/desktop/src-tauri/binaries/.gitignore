@@ -1,3 +1,4 @@
 # Built helper binaries staged here by macos/stage-binaries.sh.
 # Don't commit; they're rebuilt from sources.
 audio-tap-*
+sarathi-sidecar-*

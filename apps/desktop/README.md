@@ -76,8 +76,14 @@ Selectable from the top-bar dropdown:
 - Audio frames go through `try_send` on a bounded mpsc channel, so a slow sidecar drops frames instead of stalling the audio thread; the mixer additionally caps each per-source ring at 5 s.
 - `tauri.conf.json` declares the helper as `bundle.externalBin`; `macos/stage-binaries.sh` (run from `beforeBundleCommand`) places the built Swift binary at `binaries/audio-tap-<triple>` so Tauri picks it up. `system_audio::resolve_bin` checks the bundled location first, dev paths next.
 
+## Tray + global hotkey
+
+- Menu-bar tray icon with **Toggle Recording**, **Show Sarathi**, **Quit**.
+- Global hotkey: `Cmd+Shift+R` toggles recording from anywhere on the system. Uses `tauri-plugin-global-shortcut`.
+- Both fire a `tray://toggle-record` event; `App.tsx` reads the latest status via a ref and flips between `start/stopRecording`.
+
 ## Status
 
 - M3 ✅ — bridge, mic capture, transcript view, references panel, doc upload.
 - M4 ✅ — Swift `audio-tap`, system-audio bridge, source selector, permission banner, sample-aligned mixer, bundled-binary resolution, Info.plist, entitlements, backpressure.
-- M5 — diarization, retention job, tray + hotkey, full packaging + signing.
+- M5 ✅ — diarization, retention vacuum, tray + hotkey, packaging recipe (`docs/packaging.md`). PyInstaller spec + bundled-sidecar resolver. First-run model download UI is the only remaining polish.
