@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/docupload.tsx","./src/components/firstrunoverlay.tsx","./src/components/permissionbanner.tsx","./src/components/referencespanel.tsx","./src/components/sourceselector.tsx","./src/components/transcriptview.tsx","./src/lib/audio.ts","./src/lib/sidecar.ts"],"version":"5.9.3"}
