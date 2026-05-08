@@ -31,6 +31,7 @@ class StreamSegment:
     end_s: float
     language: str | None
     avg_logprob: float | None = None
+    speaker_id: str | None = None
 
 
 @lru_cache(maxsize=2)
@@ -57,12 +58,15 @@ class StreamingTranscriber:
         language: str | None = None,
         no_speech_threshold: float = 0.6,
         condition_on_previous_text: bool = False,
+        diarizer=None,  # optional Diarizer instance; tags segments with speaker_id
     ):
         self._vad = StreamingVad(vad)
         self._wm = _load_whisper(model, compute_type, device)
         self._language = language
         self._no_speech_threshold = no_speech_threshold
         self._condition = condition_on_previous_text
+        self._diarizer = diarizer
+        self._last_speaker: str | None = None
 
     def feed(self, pcm_int16: np.ndarray) -> Iterator[StreamSegment]:
         for utt in self._vad.feed(pcm_int16):
@@ -104,10 +108,37 @@ class StreamingTranscriber:
         if not text:
             return None
 
+        speaker_id = self._diarize_one(utt)
+
         return StreamSegment(
             text=text,
             start_s=utt.start_s,
             end_s=utt.end_s,
             language=info.language,
             avg_logprob=(sum(avg_logprobs) / len(avg_logprobs)) if avg_logprobs else None,
+            speaker_id=speaker_id,
         )
+
+    def _diarize_one(self, utt: Utterance) -> str | None:
+        """Diarize a single utterance. If too short for stable clustering or
+        diarization is unavailable, fall back to the previous label."""
+        if self._diarizer is None:
+            return None
+        try:
+            segs = self._diarizer.diarize_utterance(utt.pcm)
+        except RuntimeError:
+            # Module loaded but model unavailable (no token, license, etc).
+            self._diarizer = None
+            return None
+        except Exception:
+            return self._last_speaker
+
+        if not segs:
+            return self._last_speaker
+
+        from sarathi.asr.diarize import dominant_speaker
+
+        sp = dominant_speaker(segs)
+        if sp is not None:
+            self._last_speaker = sp
+        return sp
