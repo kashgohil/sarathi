@@ -51,13 +51,33 @@ pnpm install
 # Tauri CLI (one-time):
 cargo install tauri-cli --version "^2.0"   # if not already installed
 
+# Build the Swift system-audio helper (one-time / when changed):
+bash src-tauri/macos/build.sh             # produces .build/release/audio-tap
+
 # Run dev:
 pnpm tauri:dev
 ```
 
-First launch will prompt for microphone access. System-audio capture (Zoom/Meet) lands in M4 and will require Screen Recording permission.
+First launch will prompt for microphone access. The first time you select "System audio" or "Mic + system" in the source dropdown, macOS prompts for Screen Recording permission; if denied, the app shows a banner with a button that deep-links to System Settings.
+
+## Audio sources
+
+Selectable from the top-bar dropdown:
+
+- **Microphone** — `getUserMedia` in the webview, downsampled to 16 kHz mono int16 in an AudioWorklet, sent via `mic_pcm` command.
+- **System audio** — Swift helper (`audio-tap`) using ScreenCaptureKit, captures everything the system plays (Zoom/Meet/Teams). Raw int16 LE PCM on stdout, JSON status on stderr.
+- **Mic + system** — both streams feed a Rust mixer (`mixer.rs`) which sample-aligns them on a 250 ms tick, sums with int16 clipping, and forwards a single combined stream. Includes drift correction (max 1.5 s) and single-source fallback if one channel goes silent.
+
+## Permissions, packaging, backpressure
+
+- `Info.plist` declares `NSMicrophoneUsageDescription` and `NSScreenCaptureUsageDescription`. macOS shows these strings in its permission prompt.
+- `macos.entitlements` grants the audio-input entitlement and library validation flags needed for the bundled helper.
+- The Swift helper proactively calls `CGPreflightScreenCaptureAccess()` and `CGRequestScreenCaptureAccess()` for deterministic permission UX, plus a multi-signal `classifyError()` for the catch-all path.
+- Audio frames go through `try_send` on a bounded mpsc channel, so a slow sidecar drops frames instead of stalling the audio thread; the mixer additionally caps each per-source ring at 5 s.
+- `tauri.conf.json` declares the helper as `bundle.externalBin`; `macos/stage-binaries.sh` (run from `beforeBundleCommand`) places the built Swift binary at `binaries/audio-tap-<triple>` so Tauri picks it up. `system_audio::resolve_bin` checks the bundled location first, dev paths next.
 
 ## Status
 
-- M3 scaffold complete: bridge, mic capture, transcript view, references panel, doc upload.
-- Not yet: system audio (M4), tray + hotkey + packaging (M5).
+- M3 ✅ — bridge, mic capture, transcript view, references panel, doc upload.
+- M4 ✅ — Swift `audio-tap`, system-audio bridge, source selector, permission banner, sample-aligned mixer, bundled-binary resolution, Info.plist, entitlements, backpressure.
+- M5 — diarization, retention job, tray + hotkey, full packaging + signing.
