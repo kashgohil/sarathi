@@ -41,7 +41,26 @@ export type SidecarEvent =
       reason: string | null;
     }
   | { type: "log"; stream: "stderr"; message: string }
-  | { type: "error"; message: string; reason?: string };
+  | { type: "error"; message: string; reason?: string }
+  | {
+      type: "model_loading";
+      component: string;
+      label: string;
+      approx_mb: number | null;
+    }
+  | {
+      type: "model_loaded";
+      component: string;
+      label: string;
+      elapsed_ms: number;
+    }
+  | {
+      type: "model_error";
+      component: string;
+      label: string;
+      error: string;
+      elapsed_ms: number;
+    };
 
 export type Citation = {
   chunk_id: string;

@@ -22,6 +22,7 @@ import {
 import { DocUpload } from "./components/DocUpload";
 import { SourceSelector, type AudioSource } from "./components/SourceSelector";
 import { PermissionBanner } from "./components/PermissionBanner";
+import { FirstRunOverlay } from "./components/FirstRunOverlay";
 
 type Status =
   | { kind: "idle" }
@@ -36,6 +37,9 @@ export default function App() {
   const [utterances, setUtterances] = useState<Utterance[]>([]);
   const [cards, setCards] = useState<ReferenceCard[]>([]);
   const [permissionMsg, setPermissionMsg] = useState<string | null>(null);
+  // Append-only event log restricted to model_* events. Bounded so it doesn't
+  // grow forever during very long sessions.
+  const [modelEvents, setModelEvents] = useState<SidecarEvent[]>([]);
   const micRef = useRef<AudioCapture | null>(null);
 
   // Subscribe to sidecar events.
@@ -138,6 +142,14 @@ export default function App() {
         console.info(
           `ingested ${e.doc_count} docs, ${e.chunk_count} chunks, indexed=${e.indexed}`,
         );
+        break;
+      case "model_loading":
+      case "model_loaded":
+      case "model_error":
+        setModelEvents((prev) => {
+          const next = [...prev, e];
+          return next.length > 200 ? next.slice(-200) : next;
+        });
         break;
       default:
         break;
@@ -266,6 +278,8 @@ export default function App() {
       <aside className="overflow-hidden">
         <ReferencesPanel cards={cards} />
       </aside>
+
+      <FirstRunOverlay events={modelEvents} />
     </div>
   );
 }
