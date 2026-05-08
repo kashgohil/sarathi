@@ -60,6 +60,11 @@ export type SidecarEvent =
       label: string;
       error: string;
       elapsed_ms: number;
+    }
+  | {
+      type: "preload_done";
+      components: Record<string, boolean>;
+      ok: boolean;
     };
 
 export type Citation = {
@@ -77,6 +82,7 @@ export type SidecarCommand =
   | { type: "ingest"; path: string }
   | { type: "question"; text: string }
   | { type: "session"; action: "start" | "end"; id: string; title?: string }
+  | { type: "preload"; components?: string[] }
   | { type: "shutdown" };
 
 const EVENT_NAME = "sidecar://event";

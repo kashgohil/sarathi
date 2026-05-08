@@ -25,6 +25,9 @@ import { PermissionBanner } from "./components/PermissionBanner";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
 import { Wheel } from "./components/Wheel";
 import { Splash } from "./components/Splash";
+import { Setup } from "./components/Setup";
+
+const SETUP_DONE_KEY = "sarathi.setupComplete";
 
 type Status =
   | { kind: "idle" }
@@ -37,6 +40,16 @@ export default function App() {
   // Splash plays once per process; if we re-mount the App during dev HMR
   // we still want a single fresh launch experience, which is the default.
   const [splashDone, setSplashDone] = useState(false);
+  // Setup gate: until `localStorage.sarathi.setupComplete = "true"` we block
+  // access to the main app and show the Setup view. The flag gets set after
+  // a successful preload (or after the user clicks "Continue anyway").
+  const [setupNeeded, setSetupNeeded] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(SETUP_DONE_KEY) !== "true";
+    } catch {
+      return true;
+    }
+  });
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [source, setSource] = useState<AudioSource>("mic");
   const [utterances, setUtterances] = useState<Utterance[]>([]);
@@ -299,6 +312,33 @@ export default function App() {
       </aside>
 
       <FirstRunOverlay events={modelEvents} />
+
+      {/* Setup gate: until preload reports done (or the user explicitly
+          skips), the Setup view sits on top of everything else and is the
+          only thing the user can interact with. */}
+      {splashDone && setupNeeded && (
+        <Setup
+          onDone={() => {
+            try {
+              localStorage.setItem(SETUP_DONE_KEY, "true");
+            } catch {
+              /* ignore: e.g., storage unavailable in some webviews */
+            }
+            setSetupNeeded(false);
+          }}
+          onSkip={() => {
+            // User explicitly opted out — still flip the flag so we don't
+            // re-show this every launch. Models will load lazily on first
+            // use, surfaced via FirstRunOverlay.
+            try {
+              localStorage.setItem(SETUP_DONE_KEY, "true");
+            } catch {
+              /* ignore */
+            }
+            setSetupNeeded(false);
+          }}
+        />
+      )}
 
       {!splashDone && <Splash onDone={() => setSplashDone(true)} />}
     </div>
