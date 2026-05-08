@@ -2,10 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { startMicCapture, type AudioCapture } from "./lib/audio";
 import {
   onSidecarEvent,
+  onSystemAudioEvent,
   sendCommand,
+  startMixer,
   startSidecar,
+  startSystemAudio,
+  stopMixer,
   stopSidecar,
+  stopSystemAudio,
   type SidecarEvent,
+  type SystemAudioEvent,
 } from "./lib/sidecar";
 import { TranscriptView, type Utterance } from "./components/TranscriptView";
 import {
@@ -13,25 +19,40 @@ import {
   type ReferenceCard,
 } from "./components/ReferencesPanel";
 import { DocUpload } from "./components/DocUpload";
+import { SourceSelector, type AudioSource } from "./components/SourceSelector";
+import { PermissionBanner } from "./components/PermissionBanner";
 
 type Status =
   | { kind: "idle" }
   | { kind: "starting" }
   | { kind: "ready"; stubs: string[] }
-  | { kind: "recording"; sessionId: string }
+  | { kind: "recording"; sessionId: string; source: AudioSource }
   | { kind: "error"; message: string };
 
 export default function App() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [source, setSource] = useState<AudioSource>("mic");
   const [utterances, setUtterances] = useState<Utterance[]>([]);
   const [cards, setCards] = useState<ReferenceCard[]>([]);
-  const captureRef = useRef<AudioCapture | null>(null);
+  const [permissionMsg, setPermissionMsg] = useState<string | null>(null);
+  const micRef = useRef<AudioCapture | null>(null);
 
   // Subscribe to sidecar events.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
       unlisten = await onSidecarEvent(handleEvent);
+    })();
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  // Subscribe to system-audio helper events (permission, errors).
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      unlisten = await onSystemAudioEvent(handleSystemAudioEvent);
     })();
     return () => {
       unlisten?.();
@@ -56,20 +77,21 @@ export default function App() {
         ]);
         break;
       case "reference":
-        setCards((prev) => [
-          {
-            id: `ref-${Date.now()}-${prev.length}`,
-            trigger: e.trigger,
-            query: e.query,
-            citations: e.citations,
-            receivedAt: Date.now(),
-          },
-          ...prev,
-        ].slice(0, 50));
+        setCards((prev) =>
+          [
+            {
+              id: `ref-${Date.now()}-${prev.length}`,
+              trigger: e.trigger,
+              query: e.query,
+              citations: e.citations,
+              receivedAt: Date.now(),
+            },
+            ...prev,
+          ].slice(0, 50),
+        );
         break;
       case "answer":
         setCards((prev) => {
-          // Attach answer to the most recent question-triggered card.
           const idx = prev.findIndex((c) => c.trigger === "question" && !c.answer);
           if (idx < 0) return prev;
           const next = [...prev];
@@ -96,6 +118,17 @@ export default function App() {
     }
   }, []);
 
+  const handleSystemAudioEvent = useCallback((e: SystemAudioEvent) => {
+    if (e.type === "error" && e.kind === "permission_denied") {
+      setPermissionMsg(e.message);
+    } else if (e.type === "ready") {
+      setPermissionMsg(null);
+    } else if (e.type === "error") {
+      // eslint-disable-next-line no-console
+      console.warn("system-audio error:", e.kind, e.message);
+    }
+  }, []);
+
   async function ensureSidecar() {
     if (status.kind === "idle" || status.kind === "error") {
       setStatus({ kind: "starting" });
@@ -116,13 +149,41 @@ export default function App() {
       id: sessionId,
       title: new Date().toLocaleString(),
     });
-    captureRef.current = await startMicCapture();
-    setStatus({ kind: "recording", sessionId });
+
+    // Mixer must be started BEFORE the capture sources so their first
+    // frames find it and route through it.
+    if (source === "both") {
+      await startMixer();
+    }
+    if (source === "mic" || source === "both") {
+      micRef.current = await startMicCapture();
+    }
+    if (source === "system" || source === "both") {
+      try {
+        await startSystemAudio();
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("startSystemAudio failed:", err);
+        setPermissionMsg(String(err));
+      }
+    }
+
+    setStatus({ kind: "recording", sessionId, source });
   }
 
   async function stopRecording() {
-    await captureRef.current?.stop();
-    captureRef.current = null;
+    await micRef.current?.stop();
+    micRef.current = null;
+    try {
+      await stopSystemAudio();
+    } catch {
+      /* ignore */
+    }
+    try {
+      await stopMixer();
+    } catch {
+      /* ignore */
+    }
     if (status.kind === "recording") {
       await sendCommand({ type: "session", action: "end", id: status.sessionId });
     }
@@ -131,7 +192,9 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      void captureRef.current?.stop();
+      void micRef.current?.stop();
+      void stopSystemAudio().catch(() => {});
+      void stopMixer().catch(() => {});
       void stopSidecar();
     };
   }, []);
@@ -139,7 +202,7 @@ export default function App() {
   const isRecording = status.kind === "recording";
 
   return (
-    <div className="grid grid-rows-[auto_1fr] grid-cols-[1fr_360px] h-screen">
+    <div className="grid grid-rows-[auto_auto_1fr] grid-cols-[1fr_360px] h-screen">
       {/* Top bar */}
       <header className="col-span-2 flex items-center justify-between px-5 py-3 border-b border-neutral-800">
         <div className="flex items-center gap-3">
@@ -147,6 +210,7 @@ export default function App() {
           <StatusBadge status={status} />
         </div>
         <div className="flex items-center gap-3">
+          <SourceSelector value={source} onChange={setSource} disabled={isRecording} />
           <DocUpload />
           <button
             onClick={isRecording ? stopRecording : startRecording}
@@ -162,12 +226,17 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main: transcript */}
+      {permissionMsg ? (
+        <div className="col-span-2">
+          <PermissionBanner message={permissionMsg} />
+        </div>
+      ) : (
+        <div className="col-span-2 h-0" />
+      )}
+
       <main className="overflow-hidden">
         <TranscriptView utterances={utterances} />
       </main>
-
-      {/* Side: references */}
       <aside className="overflow-hidden">
         <ReferencesPanel cards={cards} />
       </aside>
@@ -186,7 +255,7 @@ function StatusBadge({ status }: { status: Status }) {
     label = status.stubs.length > 0 ? "ready (stubbed)" : "ready";
   } else if (status.kind === "recording") {
     color = "bg-red-500";
-    label = "recording";
+    label = `recording · ${status.source}`;
   } else if (status.kind === "error") {
     color = "bg-red-700";
     label = "error";

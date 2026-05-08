@@ -10,7 +10,7 @@
  * 1.33 = ~43 KB/s of base64. Negligible at IPC scale.
  */
 
-import { sendCommand } from "./sidecar";
+import { sendMicPcm } from "./sidecar";
 
 const TARGET_SR = 16000;
 const SEND_INTERVAL_MS = 250;
@@ -98,11 +98,12 @@ export async function startMicCapture(): Promise<AudioCapture> {
   });
   src.connect(node);
 
-  // Worklet posts ArrayBuffers of int16 PCM; we forward them as base64.
+  // Worklet posts ArrayBuffers of int16 PCM; we forward via the Rust-side
+  // mic_pcm command which handles mixer routing transparently.
   node.port.onmessage = (ev) => {
     const buf = ev.data as ArrayBuffer;
     if (!buf || buf.byteLength === 0) return;
-    void sendCommand({ type: "audio", pcm_b64: int16ToBase64(buf) });
+    void sendMicPcm(int16ToBase64(buf));
   };
 
   return {

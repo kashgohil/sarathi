@@ -68,8 +68,57 @@ export async function sendCommand(cmd: SidecarCommand): Promise<void> {
   await invoke("sidecar_send", { cmd });
 }
 
+/** Mic PCM frames go through this path so the Rust side can route them
+ * through the mixer (when "Mic + system" is active) or forward directly
+ * to the sidecar otherwise. Always uses try_send semantics — frames may
+ * be dropped if the sidecar is overloaded. */
+export async function sendMicPcm(pcm_b64: string): Promise<void> {
+  await invoke("mic_pcm", { pcmB64: pcm_b64 });
+}
+
+export async function startMixer(): Promise<void> {
+  await invoke("mixer_start");
+}
+
+export async function stopMixer(): Promise<void> {
+  await invoke("mixer_stop");
+}
+
 export async function onSidecarEvent(
   handler: (e: SidecarEvent) => void,
 ): Promise<UnlistenFn> {
   return listen<SidecarEvent>(EVENT_NAME, (evt) => handler(evt.payload));
+}
+
+// ---------------------------------------------------------------------------
+// System audio (macOS ScreenCaptureKit helper)
+// ---------------------------------------------------------------------------
+
+export type SystemAudioEvent =
+  | { type: "ready" }
+  | { type: "info"; message: string }
+  | {
+      type: "error";
+      kind: "permission_denied" | "init" | "start_failed" | "stream_error";
+      message: string;
+    };
+
+const SYSTEM_AUDIO_EVENT = "system-audio://event";
+
+export async function startSystemAudio(): Promise<void> {
+  await invoke("system_audio_start");
+}
+
+export async function stopSystemAudio(): Promise<void> {
+  await invoke("system_audio_stop");
+}
+
+export async function openScreenRecordingSettings(): Promise<void> {
+  await invoke("open_screen_recording_settings");
+}
+
+export async function onSystemAudioEvent(
+  handler: (e: SystemAudioEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<SystemAudioEvent>(SYSTEM_AUDIO_EVENT, (evt) => handler(evt.payload));
 }
