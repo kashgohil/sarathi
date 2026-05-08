@@ -4,6 +4,7 @@ use tauri::Manager;
 mod mixer;
 mod sidecar;
 mod system_audio;
+mod tray;
 
 use mixer::Mixer;
 use sidecar::SidecarHandle;
@@ -171,6 +172,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             sidecar_start,
@@ -189,6 +191,7 @@ pub fn run() {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
+            tray::install(app.handle())?;
             Ok(())
         })
         .run(tauri::generate_context!())
