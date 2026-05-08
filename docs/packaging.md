@@ -128,4 +128,4 @@ The sidecar emits `info` events on stderr while models download. Forwarding thes
 - **Sidecar exits immediately with `permission_denied`** — that's the screen-recording prompt. Click "Open System Settings" in the in-app banner; toggle Sarathi on under Privacy & Security → Screen Recording.
 - **MLX model loads slowly on first run** — expected. ~8 GB of weights map into unified memory; subsequent loads are fast (already memory-mapped).
 - **`pyannote` errors with HTTP 401** — accept the model license at https://huggingface.co/pyannote/speaker-diarization-3.1, generate a read token, set `HF_TOKEN`, restart.
-- **Bundle is huge (~15 GB)** — that's torch + mlx + whisper + BGE + reranker. To ship a lighter build, omit the `[ml]` extra at PyInstaller time; the sidecar still produces stub answers and the eval harness still runs.
+- **Bundle is huge (~3 GB)** — that's mostly torch + mlx + paddle code; the *models* (~7.5 GB) live in user data and aren't bundled. To ship a lighter build, omit the `[ml]` extra at PyInstaller time (~150 MB); the sidecar still does ingest, chunking, and retention but answers are stubbed.
