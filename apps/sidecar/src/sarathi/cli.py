@@ -187,15 +187,15 @@ def run(
 def serve(
     config_path: Optional[Path] = typer.Option(None, "--config", help="Override config TOML."),
 ):
-    """Long-running streaming mode (M2). Currently a stub.
+    """Long-running streaming mode.
 
-    Reads JSON commands from stdin, emits NDJSON events on stdout. The
-    protocol is fixed in M2; this stub exists so the Tauri side can wire
-    up child-process management early.
+    Reads NDJSON commands from stdin, emits NDJSON events on stdout. See
+    `sarathi.serve` module docstring for the wire protocol.
     """
-    err.print("[yellow]sarathi serve: M2 stub — not yet implemented[/yellow]")
-    _emit({"type": "ready", "stub": True})
-    raise typer.Exit(code=0)
+    from sarathi.serve import serve_loop
+
+    cfg = load_config(config_path)
+    raise typer.Exit(code=serve_loop(cfg))
 
 
 if __name__ == "__main__":
