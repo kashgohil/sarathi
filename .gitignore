@@ -44,3 +44,5 @@ transcripts/
 .env
 .env.local
 .env.*.local
+
+.build/
