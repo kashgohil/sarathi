@@ -11,64 +11,54 @@ export type ReferenceCard = {
 
 export function ReferencesPanel({ cards }: { cards: ReferenceCard[] }) {
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4 border-l border-neutral-800">
+    <div className="h-full overflow-y-auto px-5 py-6 space-y-4 border-l border-page-rule">
       {cards.length === 0 ? (
-        <p className="text-neutral-500 text-sm italic">
-          References will appear here when a question is detected or when
-          something in the transcript matches your uploaded documents.
+        <p className="font-display italicize text-[1.05rem] text-page-ghost leading-snug">
+          References appear here when a question is detected or when something
+          in the transcript matches your uploaded documents.
         </p>
       ) : (
         cards.map((card) => (
           <div
             key={card.id}
-            className="rounded-lg bg-neutral-900 border border-neutral-800 p-3"
+            className="rounded-lg bg-night-rise/60 border border-page-rule p-4"
           >
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider mb-2">
+            <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider2 mb-3">
               <span
                 className={
-                  card.trigger === "question"
-                    ? "text-amber-400"
-                    : "text-emerald-400"
+                  card.trigger === "question" ? "text-flame-ember" : "text-flame"
                 }
               >
                 {card.trigger}
               </span>
-              <span className="text-neutral-500">
+              <span className="text-page-ghost">
                 {new Date(card.receivedAt).toLocaleTimeString()}
               </span>
             </div>
 
-            <p className="text-xs text-neutral-400 mb-2">
-              query: <span className="text-neutral-200">{card.query}</span>
+            <p className="font-mono text-[11px] text-page-ghost mb-3 leading-relaxed">
+              query: <span className="text-page">{card.query}</span>
             </p>
 
             {card.answer && (
-              <div className="text-sm text-neutral-100 mb-3 whitespace-pre-wrap">
+              <div className="font-display italicize text-[1.05rem] text-page leading-[1.45] mb-4 whitespace-pre-wrap">
                 {card.answer}
               </div>
             )}
 
-            <ol className="space-y-2">
+            <ol className="space-y-3">
               {card.citations.map((c, i) => (
-                <li key={c.chunk_id} className="text-xs">
-                  <div className="text-neutral-500 mb-1">
+                <li key={c.chunk_id} className="text-[12px]">
+                  <div className="font-mono text-[10px] text-page-ghost mb-1 tracking-wider2 uppercase">
                     [c{i + 1}]{" "}
                     {c.source && (
-                      <span className="text-neutral-600">
+                      <span>
                         {basename(c.source)}
-                        {c.page ? ` p.${c.page}` : ""}
+                        {c.page ? ` · p.${c.page}` : ""}
                       </span>
                     )}
                   </div>
-                  <p
-                    className={
-                      c.lang === "gu"
-                        ? "text-neutral-100 leading-snug"
-                        : "text-neutral-200 leading-snug"
-                    }
-                  >
-                    {c.text}
-                  </p>
+                  <p className="text-page-dim leading-snug">{c.text}</p>
                 </li>
               ))}
             </ol>

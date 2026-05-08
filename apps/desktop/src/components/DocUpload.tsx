@@ -31,13 +31,13 @@ export function DocUpload({ onIngestRequested }: { onIngestRequested?: (path: st
     <div className="flex gap-2">
       <button
         onClick={pick}
-        className="px-3 py-1.5 text-xs rounded border border-neutral-700 hover:bg-neutral-800"
+        className="px-3 py-1.5 text-[11.5px] tracking-tight rounded-full border border-page-rule text-page-dim hover:text-page hover:border-page/40 transition"
       >
         Add document
       </button>
       <button
         onClick={pickDir}
-        className="px-3 py-1.5 text-xs rounded border border-neutral-700 hover:bg-neutral-800"
+        className="px-3 py-1.5 text-[11.5px] tracking-tight rounded-full border border-page-rule text-page-dim hover:text-page hover:border-page/40 transition"
       >
         Add folder
       </button>

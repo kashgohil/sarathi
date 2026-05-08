@@ -1,13 +1,86 @@
+/* Bundled fonts. Subset to weights actually used in the UI to keep the
+   bundle modest. */
+@import "@fontsource/cormorant-garamond/300.css";
+@import "@fontsource/cormorant-garamond/300-italic.css";
+@import "@fontsource/cormorant-garamond/400.css";
+@import "@fontsource/cormorant-garamond/400-italic.css";
+@import "@fontsource/plus-jakarta-sans/400.css";
+@import "@fontsource/plus-jakarta-sans/500.css";
+@import "@fontsource/plus-jakarta-sans/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: dark only;
+  --night: #0A0F26;
+  --night-deep: #060A1B;
+  --flame: #E5A752;
+  --flame-ember: #F4C97A;
+  --sindoor: #C13D2A;
+  --page: #EDE3CC;
 }
 
-html,
-body,
-#root {
+html, body, #root {
   height: 100%;
+}
+
+body {
+  background: var(--night);
+  color: var(--page);
+  font-family: theme(fontFamily.sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+::selection {
+  background: var(--flame);
+  color: var(--night-deep);
+}
+
+.italicize {
+  font-style: italic;
+}
+
+/* ----------------------------------------------------------------------- */
+/* Splash hero — mirrors the marketing-site hero composition.              */
+/* ----------------------------------------------------------------------- */
+
+/* Three scrims layered between the image and the bottom-left type. Same
+   geometry as the marketing site so the visual language is identical. */
+.splash-fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    /* Left scrim — strong on the left edge where the headline sits, gone
+       past ~78% across so the painting stays bright on the right. */
+    linear-gradient(
+      90deg,
+      rgba(6, 10, 27, 0.92) 0%,
+      rgba(6, 10, 27, 0.78) 18%,
+      rgba(6, 10, 27, 0.50) 38%,
+      rgba(6, 10, 27, 0.18) 58%,
+      transparent 78%
+    ),
+    /* Bottom scrim. */
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(10, 15, 38, 0.10) 45%,
+      rgba(10, 15, 38, 0.78) 88%,
+      rgba(10, 15, 38, 1.0) 100%
+    );
+}
+
+/* Top fade so the traffic-light area reads cleanly even when the sky in
+   the painting behind is bright. */
+.splash-top-fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  height: 18vh;
+  background: linear-gradient(180deg, rgba(6, 10, 27, 0.55) 0%, transparent 100%);
 }

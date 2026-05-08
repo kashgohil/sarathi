@@ -99,59 +99,57 @@ export function FirstRunOverlay({
   if (!hasAny || dismissed) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/85 backdrop-blur-md">
-      <div className="w-[min(640px,92vw)] rounded-xl border border-neutral-800 bg-neutral-950 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-night-deep/85 backdrop-blur-md">
+      <div className="w-[min(640px,92vw)] rounded-xl border border-page-rule bg-night-rise">
         {/* Header strip */}
-        <div className="px-5 py-3.5 border-b border-neutral-800 flex items-center justify-between">
+        <div className="px-5 py-3.5 border-b border-page-rule flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span
               className={
                 "w-1.5 h-1.5 rounded-full " +
-                (anyActive ? "bg-red-500 animate-pulse" : "bg-emerald-500")
+                (anyActive ? "bg-flame animate-pulse" : "bg-flame-ember")
               }
             />
-            <span className="font-mono text-[10.5px] uppercase tracking-[0.2em] text-neutral-300">
+            <span className="font-mono text-[10.5px] uppercase tracking-wider2 text-page-dim">
               {anyActive ? "Loading models" : "Models ready"}
             </span>
           </div>
-          <span className="font-mono text-[10.5px] text-neutral-500">
+          <span className="font-mono text-[10.5px] text-page-ghost">
             {summary(list)}
           </span>
         </div>
 
         {/* Title */}
         <div className="px-5 pt-5 pb-2">
-          <h2 className="text-[15px] tracking-tight text-neutral-100">
-            {anyActive
-              ? "Preparing the local pipeline"
-              : "Pipeline ready"}
+          <h2 className="font-display italicize text-[1.4rem] text-page leading-tight">
+            {anyActive ? "Preparing the local pipeline." : "Pipeline ready."}
           </h2>
-          <p className="text-[12px] text-neutral-500 mt-1 leading-relaxed">
-            Models load on-demand. The first launch downloads weights to your
+          <p className="text-[12.5px] text-page-ghost mt-2 leading-relaxed">
+            Models load on demand. The first launch downloads weights to your
             machine. Subsequent launches reuse them.
           </p>
         </div>
 
         {/* Rows */}
-        <ol className="px-5 pb-2">
+        <ol className="px-5 pb-2 mt-2">
           {list.map((r) => (
             <Row key={r.component} row={r} now={lastEventAt ?? Date.now()} />
           ))}
         </ol>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-neutral-800 flex items-center justify-between">
-          <span className="font-mono text-[10.5px] text-neutral-500">
+        <div className="px-5 py-3 border-t border-page-rule flex items-center justify-between">
+          <span className="font-mono text-[10.5px] text-page-ghost">
             on-device · forever
           </span>
           <button
             onClick={() => setDismissed(true)}
             disabled={anyActive}
             className={
-              "text-[12px] tracking-tight px-3 py-1.5 rounded border " +
+              "text-[12px] tracking-tight px-4 py-1.5 rounded-full border transition " +
               (anyActive
-                ? "border-neutral-800 text-neutral-600 cursor-not-allowed"
-                : "border-neutral-700 text-neutral-200 hover:bg-neutral-800")
+                ? "border-page-rule text-page-ghost cursor-not-allowed"
+                : "border-page/30 text-page hover:bg-page/10")
             }
           >
             {anyActive ? "Working…" : "Continue"}
@@ -178,10 +176,10 @@ function Row({ row, now }: { row: ComponentRow; now: number }) {
 
   const dotColor =
     row.status === "loading"
-      ? "bg-red-500 animate-pulse"
+      ? "bg-flame animate-pulse"
       : row.status === "loaded"
-      ? "bg-emerald-500"
-      : "bg-amber-500";
+      ? "bg-flame-ember"
+      : "bg-sindoor";
 
   const dimensionsLabel = row.approx_mb
     ? row.approx_mb >= 1000
@@ -190,31 +188,29 @@ function Row({ row, now }: { row: ComponentRow; now: number }) {
     : "—";
 
   return (
-    <li className="grid grid-cols-[1.25rem_1fr_auto_auto] items-center gap-3 py-2.5 border-b border-neutral-900 last:border-b-0">
+    <li className="grid grid-cols-[1.25rem_1fr_auto_auto] items-center gap-3 py-2.5 border-b border-page-rule last:border-b-0">
       <span className={`w-2 h-2 rounded-full ${dotColor}`} />
 
       <div className="min-w-0">
-        <div className="text-[13px] text-neutral-100 truncate">
-          {row.label}
-        </div>
+        <div className="text-[13px] text-page truncate">{row.label}</div>
         {row.error ? (
-          <div className="text-[11px] text-amber-400 truncate mt-0.5">
+          <div className="text-[11px] text-sindoor truncate mt-0.5">
             {row.error}
           </div>
         ) : (
-          <div className="font-mono text-[10.5px] text-neutral-500 truncate">
+          <div className="font-mono text-[10.5px] text-page-ghost truncate">
             {row.component}
           </div>
         )}
       </div>
 
-      <span className="font-mono text-[10.5px] text-neutral-500 tabular-nums">
+      <span className="font-mono text-[10.5px] text-page-ghost tabular-nums">
         {dimensionsLabel}
       </span>
       <span
         className={
           "font-mono text-[10.5px] tabular-nums " +
-          (row.status === "loading" ? "text-red-400" : "text-neutral-500")
+          (row.status === "loading" ? "text-flame" : "text-page-ghost")
         }
       >
         {row.status === "loading"

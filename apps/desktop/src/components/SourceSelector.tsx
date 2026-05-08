@@ -14,7 +14,7 @@ export function SourceSelector({
       value={value}
       onChange={(e) => onChange(e.target.value as AudioSource)}
       disabled={disabled}
-      className="bg-neutral-900 border border-neutral-700 rounded text-xs px-2 py-1 disabled:opacity-50"
+      className="bg-night-rise border border-page-rule rounded-full text-[11.5px] tracking-tight px-3 py-1.5 text-page-dim hover:text-page disabled:opacity-50 transition"
       title="Audio source"
     >
       <option value="mic">Microphone</option>

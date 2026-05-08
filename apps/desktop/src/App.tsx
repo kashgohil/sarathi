@@ -23,6 +23,8 @@ import { DocUpload } from "./components/DocUpload";
 import { SourceSelector, type AudioSource } from "./components/SourceSelector";
 import { PermissionBanner } from "./components/PermissionBanner";
 import { FirstRunOverlay } from "./components/FirstRunOverlay";
+import { Wheel } from "./components/Wheel";
+import { Splash } from "./components/Splash";
 
 type Status =
   | { kind: "idle" }
@@ -32,6 +34,9 @@ type Status =
   | { kind: "error"; message: string };
 
 export default function App() {
+  // Splash plays once per process; if we re-mount the App during dev HMR
+  // we still want a single fresh launch experience, which is the default.
+  const [splashDone, setSplashDone] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [source, setSource] = useState<AudioSource>("mic");
   const [utterances, setUtterances] = useState<Utterance[]>([]);
@@ -240,11 +245,25 @@ export default function App() {
   const isRecording = status.kind === "recording";
 
   return (
-    <div className="grid grid-rows-[auto_auto_1fr] grid-cols-[1fr_360px] h-screen">
-      {/* Top bar */}
-      <header className="col-span-2 flex items-center justify-between px-5 py-3 border-b border-neutral-800">
+    <div className="grid grid-rows-[auto_auto_auto_1fr] grid-cols-[1fr_360px] h-screen">
+      {/* macOS traffic-light nest. The window has `titleBarStyle: Overlay`,
+          so the system buttons float over this transparent drag zone. The
+          taller height gives a comfortable grab-target. */}
+      <div
+        className="col-span-2 h-9 bg-night"
+        data-tauri-drag-region
+      />
+
+      {/* App header — also a drag region so the user can grab the window
+          from anywhere along the top, like every other macOS app. Buttons
+          and inputs inside still receive their own clicks. */}
+      <header
+        className="col-span-2 flex items-center justify-between px-5 pt-2 pb-3 border-b border-page-rule"
+        data-tauri-drag-region
+      >
         <div className="flex items-center gap-3">
-          <div className="font-medium tracking-tight">Sarathi</div>
+          <Wheel size={22} className="text-flame-ember" />
+          <div className="font-display text-[1.2rem] text-page">Sarathi</div>
           <StatusBadge status={status} />
         </div>
         <div className="flex items-center gap-3">
@@ -253,10 +272,10 @@ export default function App() {
           <button
             onClick={isRecording ? stopRecording : startRecording}
             className={
-              "px-4 py-1.5 text-sm rounded font-medium " +
+              "px-4 py-1.5 text-[12.5px] tracking-tight rounded-full font-medium transition " +
               (isRecording
-                ? "bg-red-500/90 hover:bg-red-500 text-white"
-                : "bg-emerald-500/90 hover:bg-emerald-500 text-neutral-950")
+                ? "bg-sindoor hover:bg-sindoor-deep text-page"
+                : "bg-flame hover:bg-flame-ember text-night-deep")
             }
           >
             {isRecording ? "Stop" : "Record"}
@@ -280,29 +299,31 @@ export default function App() {
       </aside>
 
       <FirstRunOverlay events={modelEvents} />
+
+      {!splashDone && <Splash onDone={() => setSplashDone(true)} />}
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: Status }) {
-  let color = "bg-neutral-700";
+  let color = "bg-page/30";
   let label = "idle";
   if (status.kind === "starting") {
-    color = "bg-amber-500";
+    color = "bg-flame";
     label = "starting";
   } else if (status.kind === "ready") {
-    color = status.stubs.length > 0 ? "bg-amber-500" : "bg-emerald-500";
+    color = status.stubs.length > 0 ? "bg-flame" : "bg-flame-ember";
     label = status.stubs.length > 0 ? "ready (stubbed)" : "ready";
   } else if (status.kind === "recording") {
-    color = "bg-red-500";
+    color = "bg-sindoor";
     label = `recording · ${status.source}`;
   } else if (status.kind === "error") {
-    color = "bg-red-700";
+    color = "bg-sindoor-deep";
     label = "error";
   }
   return (
-    <div className="flex items-center gap-2 text-xs text-neutral-400">
-      <span className={`w-2 h-2 rounded-full ${color}`} />
+    <div className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-wider2 text-page-ghost ml-2">
+      <span className={`w-1.5 h-1.5 rounded-full ${color}`} />
       <span>{label}</span>
     </div>
   );
