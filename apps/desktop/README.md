@@ -46,7 +46,7 @@ In dev, the Rust shell finds the sidecar by walking up from `CARGO_MANIFEST_DIR`
 
 ```bash
 cd apps/desktop
-pnpm install
+bun install
 
 # Tauri CLI (one-time):
 cargo install tauri-cli --version "^2.0"   # if not already installed
@@ -55,7 +55,7 @@ cargo install tauri-cli --version "^2.0"   # if not already installed
 bash src-tauri/macos/build.sh             # produces .build/release/audio-tap
 
 # Run dev:
-pnpm tauri:dev
+bun tauri:dev
 ```
 
 First launch will prompt for microphone access. The first time you select "System audio" or "Mic + system" in the source dropdown, macOS prompts for Screen Recording permission; if denied, the app shows a banner with a button that deep-links to System Settings.

@@ -28,8 +28,8 @@ uv run pyinstaller sarathi.spec   # writes apps/sidecar/dist/sarathi-sidecar/
 
 # 2. Desktop frontend
 cd ../desktop
-pnpm install
-pnpm build                         # writes apps/desktop/dist/
+bun install
+bun run build                      # writes apps/desktop/dist/
 
 # 3. Swift helper
 bash src-tauri/macos/build.sh release
@@ -38,7 +38,7 @@ bash src-tauri/macos/build.sh release
 bash src-tauri/macos/stage-binaries.sh release
 
 # 5. Tauri build (assembles .app, .dmg)
-pnpm tauri:build
+bun tauri:build
 ```
 
 The `beforeBundleCommand` in `tauri.conf.json` runs steps 3–4 automatically — but step 1 (PyInstaller) is intentionally NOT in the bundle hook because it's slow and you don't want it firing on every dev rebuild.
@@ -47,7 +47,7 @@ If you skip step 1, the staging script writes a shim that defers to `uv run sara
 
 ## Code-signing & notarization
 
-Tauri 2 reads signing config from environment variables. Set these before `pnpm tauri:build`:
+Tauri 2 reads signing config from environment variables. Set these before `bun tauri:build`:
 
 ```bash
 export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
@@ -60,7 +60,7 @@ export APPLE_TEAM_ID="TEAMID"
 
 `tauri.conf.json` already references `macos.entitlements` which grants the audio-input entitlement plus the library-validation flags needed for the embedded helpers. If you add new entitlements, edit that file.
 
-After `pnpm tauri:build`, notarize:
+After `bun tauri:build`, notarize:
 
 ```bash
 xcrun notarytool submit \

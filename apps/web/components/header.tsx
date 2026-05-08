@@ -12,9 +12,7 @@ export function Header() {
       <div className="mx-auto max-w-[1320px] flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 text-page">
           <Wheel size={26} className="text-flame-ember" />
-          <span className="font-display italicize text-[1.4rem] tracking-tight">
-            Sarathi
-          </span>
+          <span className="font-display text-[1.4rem]">Sarathi</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-8 text-[12.5px] tracking-tight text-page-dim">

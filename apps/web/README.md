@@ -1,36 +1,46 @@
 # Marketing site
 
-Hero/marketing site for Sarathi. Static, content-first, Astro.
+Next.js 15 (App Router) hero/marketing site for Sarathi. Static, content-first.
 
-## Scaffold (one-time, run from this directory)
+## Stack
 
-`pnpm create astro@latest` is interactive — run it once and pick:
+- Next.js 15 + App Router
+- Tailwind CSS
+- Cormorant Garamond (display) + Plus Jakarta Sans (body) + JetBrains Mono via `next/font`
+- Hero painting (Krishna and Arjuna) at `public/art/krishna-arjuna-hero.jpg`
+- Brand mark at `public/wheel.svg` (also auto-mounted as favicon via `app/icon.svg`)
 
-```
-pnpm create astro@latest .
-# - Where should we create your new project?         ./
-# - How would you like to start your new project?    Empty
-# - Install dependencies?                            Yes
-# - Initialize a new git repository?                 No  (we already have one)
-# - Do you plan to write TypeScript?                 Yes
-# - How strict should TypeScript be?                 Strict
-```
-
-After scaffold:
+## Run
 
 ```bash
-pnpm add -D @astrojs/mdx tailwindcss @tailwindcss/vite
-pnpm astro add tailwind        # follow the prompts
-pnpm astro add mdx
+bun install
+bun run dev          # http://localhost:8100
+bun run build        # static export
+bun run start        # serve the build on 8100
 ```
 
-## Pages plan
+## Structure
 
-- `/` — hero (problem, demo, primary CTA)
-- `/how-it-works` — pipeline overview (audio → transcript → references → answer)
-- `/privacy` — local-first claims (what stays on-device, what doesn't)
-- `/download` — placeholder until M5 produces a signed `.dmg`
+```
+app/
+  layout.tsx     fonts, metadata
+  page.tsx       composes Header + Hero + Verse + HowItWorks + PrivacyStripe + Specs + Footer
+  globals.css    palette, hero scrims, base resets
+  icon.svg       favicon (mirror of public/wheel.svg)
+components/
+  header.tsx
+  hero.tsx
+  verse.tsx
+  how-it-works.tsx
+  privacy-stripe.tsx
+  specs.tsx
+  footer.tsx
+  wheel.tsx      mask-image wrapper around public/wheel.svg
+public/
+  wheel.svg
+  art/krishna-arjuna-hero.jpg
+```
 
-## Out of scope here
+## Adding pages
 
-This site does NOT bundle or import anything from `apps/desktop` or `apps/sidecar`. They're independent — change them without thinking about this site, and vice versa.
+Drop a folder under `app/` with a `page.tsx`. Reuse `components/header.tsx` and `components/footer.tsx` for chrome consistency. The wheel mark, fonts, and palette tokens are already global.
