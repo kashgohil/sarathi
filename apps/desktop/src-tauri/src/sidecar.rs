@@ -162,14 +162,34 @@ async fn writer_loop(mut child: Child, mut stdin: ChildStdin, mut rx: mpsc::Rece
 ///
 /// Priority:
 ///  1. `SARATHI_SIDECAR_BIN` env var (path to a built sidecar binary).
-///  2. `SARATHI_SIDECAR_CWD` env var to override the package dir.
-///  3. Default: walk up from CARGO_MANIFEST_DIR to find `apps/sidecar`,
+///  2. Bundled .app: a triple-suffixed `sarathi-sidecar-<triple>` next to
+///     the main app binary.
+///  3. `SARATHI_SIDECAR_CWD` env var → `uv run sarathi serve`.
+///  4. Default: walk up from CARGO_MANIFEST_DIR to find `apps/sidecar`,
 ///     spawn `uv run sarathi serve` there.
 fn resolve_command() -> Result<(String, Vec<String>, PathBuf)> {
     if let Ok(bin) = std::env::var("SARATHI_SIDECAR_BIN") {
         let path = PathBuf::from(bin);
         let cwd = path.parent().map(PathBuf::from).unwrap_or_else(|| ".".into());
         return Ok((path.display().to_string(), vec!["serve".into()], cwd));
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for name in [
+                format!("sarathi-sidecar-{}", target_triple()),
+                "sarathi-sidecar".to_string(),
+            ] {
+                let candidate = dir.join(&name);
+                if candidate.is_file() {
+                    return Ok((
+                        candidate.display().to_string(),
+                        vec!["serve".into()],
+                        dir.to_path_buf(),
+                    ));
+                }
+            }
+        }
     }
 
     let cwd = if let Ok(v) = std::env::var("SARATHI_SIDECAR_CWD") {
@@ -208,4 +228,19 @@ fn find_sidecar_dir() -> Result<PathBuf> {
         "could not locate apps/sidecar from {}",
         start.display()
     ))
+}
+
+fn target_triple() -> &'static str {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    {
+        "aarch64-apple-darwin"
+    }
+    #[cfg(all(target_arch = "x86_64", target_os = "macos"))]
+    {
+        "x86_64-apple-darwin"
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        "unknown"
+    }
 }
