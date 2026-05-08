@@ -32,7 +32,19 @@ def _load(model_name: str):
         raise RuntimeError(
             "mlx-lm is required for LLM inference. Install with: uv sync --extra ml"
         ) from e
-    return load(model_name)
+    from sarathi.progress import loading
+
+    # Rough sizing from the mlx-community 4-bit quants we default to.
+    if "14B" in model_name or "14b" in model_name:
+        approx = 8000
+    elif "7B" in model_name or "7b" in model_name:
+        approx = 4000
+    elif "3B" in model_name or "3b" in model_name:
+        approx = 2000
+    else:
+        approx = 4000
+    with loading("llm.mlx", f"LLM ({model_name})", approx_mb=approx):
+        return load(model_name)
 
 
 def generate(

@@ -35,8 +35,11 @@ def _load_model(model_name: str, use_fp16: bool):
             "FlagEmbedding is required for embeddings. "
             "Install with: uv sync --extra ml"
         ) from e
-    # use_fp16=True → ~2x speed and minimal quality loss on M-series.
-    return BGEM3FlagModel(model_name, use_fp16=use_fp16)
+    from sarathi.progress import loading
+
+    with loading("embed.bge_m3", f"BGE-M3 ({model_name})", approx_mb=2300):
+        # use_fp16=True → ~2x speed and minimal quality loss on M-series.
+        return BGEM3FlagModel(model_name, use_fp16=use_fp16)
 
 
 def embed(

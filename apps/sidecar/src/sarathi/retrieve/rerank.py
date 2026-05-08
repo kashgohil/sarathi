@@ -29,7 +29,10 @@ def _load_reranker(model_name: str, use_fp16: bool):
         raise RuntimeError(
             "FlagEmbedding is required for reranking. Install with: uv sync --extra ml"
         ) from e
-    return FlagReranker(model_name, use_fp16=use_fp16)
+    from sarathi.progress import loading
+
+    with loading("retrieve.rerank", f"Reranker ({model_name})", approx_mb=1100):
+        return FlagReranker(model_name, use_fp16=use_fp16)
 
 
 def rerank(
