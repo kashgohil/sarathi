@@ -31,7 +31,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": ["binaries/audio-tap"],
+    "externalBin": ["binaries/audio-tap", "binaries/sarathi-sidecar"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
