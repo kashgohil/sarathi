@@ -58,11 +58,14 @@ def _load_silero():
         raise RuntimeError(
             "silero-vad and torch are required. Install with: uv sync --extra ml"
         ) from e
-    model = load_silero_vad()
-    model.eval()
-    # Set torch threads conservative — VAD is tiny, more threads hurt.
-    torch.set_num_threads(1)
-    return model
+    from sarathi.progress import loading
+
+    with loading("asr.vad", "Silero VAD", approx_mb=2):
+        model = load_silero_vad()
+        model.eval()
+        # Set torch threads conservative — VAD is tiny, more threads hurt.
+        torch.set_num_threads(1)
+        return model
 
 
 class StreamingVad:

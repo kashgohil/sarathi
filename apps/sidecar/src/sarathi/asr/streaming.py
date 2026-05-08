@@ -42,7 +42,15 @@ def _load_whisper(model_name: str, compute_type: str, device: str):
         raise RuntimeError(
             "faster-whisper is required. Install with: uv sync --extra ml"
         ) from e
-    return WhisperModel(model_name, device=device, compute_type=compute_type)
+    from sarathi.progress import loading
+
+    approx = 1000 if "turbo" in model_name else 3000
+    with loading(
+        "asr.whisper",
+        f"Whisper {model_name} ({compute_type})",
+        approx_mb=approx,
+    ):
+        return WhisperModel(model_name, device=device, compute_type=compute_type)
 
 
 class StreamingTranscriber:

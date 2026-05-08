@@ -52,15 +52,18 @@ def _load_pipeline(model: str, hf_token: str | None):
             "and set HF_TOKEN."
         )
 
-    pipe = Pipeline.from_pretrained(model, use_auth_token=hf_token)
-    # Apple Silicon: prefer Metal Performance Shaders (MPS).
-    if torch.backends.mps.is_available():
-        try:
-            pipe.to(torch.device("mps"))
-        except Exception:
-            # Some pyannote ops don't support MPS yet; CPU fallback is fine.
-            pipe.to(torch.device("cpu"))
-    return pipe
+    from sarathi.progress import loading
+
+    with loading("asr.diarize", f"Diarization ({model})", approx_mb=30):
+        pipe = Pipeline.from_pretrained(model, use_auth_token=hf_token)
+        # Apple Silicon: prefer Metal Performance Shaders (MPS).
+        if torch.backends.mps.is_available():
+            try:
+                pipe.to(torch.device("mps"))
+            except Exception:
+                # Some pyannote ops don't support MPS yet; CPU fallback is fine.
+                pipe.to(torch.device("cpu"))
+        return pipe
 
 
 class Diarizer:
