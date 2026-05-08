@@ -104,6 +104,18 @@ impl SidecarHandle {
             .map_err(|_| anyhow!("sidecar writer closed"))
     }
 
+    /// Drop-on-full variant for high-volume paths (audio frames). Returns
+    /// `Ok(true)` if queued, `Ok(false)` if dropped because the writer is
+    /// behind, `Err` if the writer is gone.
+    pub fn try_send(&self, cmd: Value) -> Result<bool> {
+        use tokio::sync::mpsc::error::TrySendError;
+        match self.tx.try_send(SidecarMsg::Send(cmd)) {
+            Ok(()) => Ok(true),
+            Err(TrySendError::Full(_)) => Ok(false),
+            Err(TrySendError::Closed(_)) => Err(anyhow!("sidecar writer closed")),
+        }
+    }
+
     pub async fn shutdown(&self) -> Result<()> {
         let (done_tx, done_rx) = oneshot::channel();
         self.tx
