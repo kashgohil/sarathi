@@ -10,7 +10,13 @@ export type SidecarEvent =
       start_s: number;
       end_s: number;
       lang: string | null;
+      speaker_id: string | null;
       session_id: string | null;
+    }
+  | {
+      type: "vacuumed";
+      deleted_transcripts: number;
+      retention_days: number;
     }
   | {
       type: "question";
@@ -121,4 +127,12 @@ export async function onSystemAudioEvent(
   handler: (e: SystemAudioEvent) => void,
 ): Promise<UnlistenFn> {
   return listen<SystemAudioEvent>(SYSTEM_AUDIO_EVENT, (evt) => handler(evt.payload));
+}
+
+// ---------------------------------------------------------------------------
+// Tray + global hotkey
+// ---------------------------------------------------------------------------
+
+export async function onTrayToggleRecord(handler: () => void): Promise<UnlistenFn> {
+  return listen("tray://toggle-record", () => handler());
 }

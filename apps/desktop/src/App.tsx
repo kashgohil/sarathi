@@ -3,6 +3,7 @@ import { startMicCapture, type AudioCapture } from "./lib/audio";
 import {
   onSidecarEvent,
   onSystemAudioEvent,
+  onTrayToggleRecord,
   sendCommand,
   startMixer,
   startSidecar,
@@ -59,6 +60,30 @@ export default function App() {
     };
   }, []);
 
+  // Tray menu / global hotkey toggle. We capture the latest status via a
+  // ref so the listener is registered exactly once but always sees current
+  // state when fired.
+  const statusRef = useRef(status);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      unlisten = await onTrayToggleRecord(() => {
+        if (statusRef.current.kind === "recording") {
+          void stopRecording();
+        } else {
+          void startRecording();
+        }
+      });
+    })();
+    return () => {
+      unlisten?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleEvent = useCallback((e: SidecarEvent) => {
     switch (e.type) {
       case "ready":
@@ -71,6 +96,7 @@ export default function App() {
             id: `${e.start_s}-${prev.length}`,
             text: e.text,
             lang: e.lang,
+            speaker_id: e.speaker_id,
             start_s: e.start_s,
             end_s: e.end_s,
           },

@@ -4,9 +4,25 @@ export type Utterance = {
   id: string;
   text: string;
   lang: string | null;
+  speaker_id: string | null;
   start_s: number;
   end_s: number;
 };
+
+const SPEAKER_COLORS = [
+  "text-sky-300",
+  "text-rose-300",
+  "text-emerald-300",
+  "text-amber-300",
+];
+
+function speakerClass(id: string | null): string {
+  if (!id) return "text-neutral-200";
+  // Stable-ish hash: take last digit if SPEAKER_NN, else first char.
+  const m = id.match(/(\d+)/);
+  const idx = m ? parseInt(m[1], 10) : id.charCodeAt(0);
+  return SPEAKER_COLORS[idx % SPEAKER_COLORS.length];
+}
 
 export function TranscriptView({ utterances }: { utterances: Utterance[] }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -33,13 +49,12 @@ export function TranscriptView({ utterances }: { utterances: Utterance[] }) {
             <span className="text-neutral-600 tabular-nums shrink-0 w-12 text-right pt-0.5 text-xs">
               {formatTime(u.start_s)}
             </span>
-            <p
-              className={
-                u.lang === "gu"
-                  ? "text-neutral-100"
-                  : "text-neutral-200"
-              }
-            >
+            <p className={speakerClass(u.speaker_id)}>
+              {u.speaker_id && (
+                <span className="mr-2 text-[10px] uppercase tracking-wider opacity-70">
+                  {u.speaker_id}
+                </span>
+              )}
               {u.text}
               {u.lang && (
                 <span className="ml-2 text-[10px] uppercase tracking-wider text-neutral-500">
