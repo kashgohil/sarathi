@@ -10,10 +10,15 @@
 //! this module never tries to guess whether we're currently recording — it
 //! just tells the renderer to flip.
 
+use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+
+/// Black-on-transparent wheel, sized for the macOS menu bar. Embedded at
+/// compile time so we don't depend on a runtime file path.
+const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray.png");
 
 pub const EVENT_TOGGLE_RECORD: &str = "tray://toggle-record";
 
@@ -39,12 +44,16 @@ fn install_tray(app: &AppHandle) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Quit", true, Some("Cmd+Q"))?;
     let menu = Menu::with_items(app, &[&toggle, &show, &quit])?;
 
+    // Tray icon: a pure-white wheel embedded as a regular (non-template)
+    // image, so macOS leaves the colour alone. Reads white on the standard
+    // dark menu bar; if the user runs a light menu bar they can ask us to
+    // ship a template variant.
+    let tray_image = Image::from_bytes(TRAY_ICON_BYTES)
+        .unwrap_or_else(|_| Image::new_owned(vec![0; 4], 1, 1));
+
     let _ = TrayIconBuilder::with_id("sarathi-tray")
         .tooltip("Sarathi")
-        .icon(app.default_window_icon().cloned().unwrap_or_else(|| {
-            // Fallback to a 1x1 transparent icon if the bundle has no default.
-            tauri::image::Image::new_owned(vec![0; 4], 1, 1)
-        }))
+        .icon(tray_image)
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "toggle" => {
