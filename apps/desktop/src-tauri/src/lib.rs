@@ -186,10 +186,15 @@ pub fn run() {
             open_screen_recording_settings,
         ])
         .setup(|app| {
+            // DevTools is available in dev builds via Cmd+Option+I, but we
+            // don't auto-open it — that's noisy during normal launch. Set
+            // SARATHI_OPEN_DEVTOOLS=1 to bring it back if you really want
+            // the panel up at boot.
             #[cfg(debug_assertions)]
-            {
-                let window = app.get_webview_window("main").unwrap();
-                window.open_devtools();
+            if std::env::var("SARATHI_OPEN_DEVTOOLS").ok().as_deref() == Some("1") {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.open_devtools();
+                }
             }
             tray::install(app.handle())?;
             Ok(())

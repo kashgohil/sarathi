@@ -7,7 +7,7 @@
 #   2. sarathi-sidecar   — built via PyInstaller (apps/sidecar/sarathi.spec).
 #                          If the PyInstaller dist is absent we fall back
 #                          to staging a tiny launcher shim that spawns
-#                          `uv run sarathi serve`. This keeps `pnpm tauri:dev`
+#                          `uv run sarathi serve`. This keeps `bun tauri:dev`
 #                          working without the Python build pipeline.
 set -euo pipefail
 
@@ -49,7 +49,7 @@ stage_sidecar() {
   fi
 
   # Fallback: write a shim that defers to `uv run sarathi serve`. Useful for
-  # `pnpm tauri:dev` workflows where you don't need the bundled Python.
+  # `bun tauri:dev` workflows where you don't need the bundled Python.
   cat > "$dst" <<'SHIM'
 #!/usr/bin/env bash
 exec uv run --project "$(cd "$(dirname "$0")/../../../sidecar" 2>/dev/null && pwd)" sarathi serve "$@"
