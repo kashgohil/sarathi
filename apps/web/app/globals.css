@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark only;
+  --night: #0A0F26;
+  --night-deep: #060A1B;
+  --flame: #E5A752;
+  --flame-ember: #F4C97A;
+  --sindoor: #C13D2A;
+  --page: #EDE3CC;
+}
+
+html, body {
+  background: var(--night);
+  color: var(--page);
+  font-family: theme(fontFamily.sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  overflow-x: clip;
+}
+
+/* Single layer of film grain across the whole page. Used because solid
+   indigo flatlines visually; grain gives it texture without resorting to
+   gradients or glows. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/></svg>");
+}
+
+::selection {
+  background: var(--flame);
+  color: var(--night-deep);
+}
+
+/* ----------------------------------------------------------------------- */
+/* Hero image treatment.                                                   */
+/* ----------------------------------------------------------------------- */
+
+/* The hero image fills its section. We desaturate slightly and add a heavy
+   grain via a separate overlay so the painting reads as artwork integrated
+   into the page, not as a stock photograph. No feathering, no blur,
+   no bloom. */
+.hero-image {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: url("/art/krishna-arjuna-hero.jpg");
+  background-size: cover;
+  background-position: center;
+  filter: saturate(0.95) contrast(1.0);
+}
+
+
+/* Two scrims that sit between the image and the text — a left-side dark
+   wash where the headline lives, plus a bottom-anchored fade to the
+   night background. Built strictly for legibility. The image stays bright
+   on the right side where there's no copy, so the painting remains the
+   subject of the section. */
+.hero-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    /* Left scrim — strong on the left edge, gone by ~55% across. */
+    linear-gradient(
+      90deg,
+      rgba(6, 10, 27, 0.92) 0%,
+      rgba(6, 10, 27, 0.78) 18%,
+      rgba(6, 10, 27, 0.50) 38%,
+      rgba(6, 10, 27, 0.18) 58%,
+      transparent 78%
+    ),
+    /* Bottom scrim — pulls the image down into the section that follows. */
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(10, 15, 38, 0.10) 45%,
+      rgba(10, 15, 38, 0.78) 88%,
+      rgba(10, 15, 38, 1.0) 100%
+    );
+}
+
+/* Top fade so the header sits cleanly on bright sky regions. */
+.hero-top-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  height: 18vh;
+  background: linear-gradient(
+    180deg,
+    rgba(6, 10, 27, 0.55) 0%,
+    transparent 100%
+  );
+}
+
+/* ----------------------------------------------------------------------- */
+/* Type detail.                                                            */
+/* ----------------------------------------------------------------------- */
+
+.italicize {
+  font-style: italic;
+}
+
+/* "Marker" — saffron underline used to flag a single span. */
+.marker {
+  background-image: linear-gradient(
+    to top,
+    rgba(229, 167, 82, 0.18) 0,
+    rgba(229, 167, 82, 0.18) 0.42em,
+    transparent 0.42em
+  );
+  padding-inline: 0.05em;
+}
+
+/* Stagger helper for the hero. */
+.stagger > * {
+  animation: rise 1.05s cubic-bezier(0.16, 0.84, 0.32, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger > *:nth-child(2) { animation-delay: 0.18s; }
+.stagger > *:nth-child(3) { animation-delay: 0.32s; }
+.stagger > *:nth-child(4) { animation-delay: 0.46s; }
+.stagger > *:nth-child(5) { animation-delay: 0.60s; }
+.stagger > *:nth-child(6) { animation-delay: 0.74s; }
+
+@keyframes rise {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Underlined link helper — clean, non-glowy. */
+.line-link {
+  position: relative;
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(237, 227, 204, 0.30);
+  transition: border-color 160ms ease, color 160ms ease;
+}
+.line-link:hover {
+  border-color: var(--page);
+}
