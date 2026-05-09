@@ -48,14 +48,25 @@ stage_sidecar() {
     return
   fi
 
-  # Fallback: write a shim that defers to `uv run sarathi serve`. Useful for
-  # `bun tauri:dev` workflows where you don't need the bundled Python.
-  cat > "$dst" <<'SHIM'
+  # Fallback: write a shim that defers to either the venv's Python (if
+  # `uv sync` has been run) or `uv run` (if uv is on PATH). The path to
+  # apps/sidecar is baked in at staging time — `dirname $0` would break
+  # the moment Tauri's `externalBin` mechanism copies this file out of
+  # `binaries/` into `target/<profile>/` for dev use.
+  local sidecar_abs
+  sidecar_abs="$(cd "$REPO_ROOT/apps/sidecar" && pwd)"
+
+  cat > "$dst" <<SHIM
 #!/usr/bin/env bash
-exec uv run --project "$(cd "$(dirname "$0")/../../../sidecar" 2>/dev/null && pwd)" sarathi serve "$@"
+SIDECAR_DIR="$sidecar_abs"
+VENV_PY="\$SIDECAR_DIR/.venv/bin/python"
+if [ -x "\$VENV_PY" ]; then
+  exec "\$VENV_PY" -m sarathi.cli serve "\$@"
+fi
+exec uv run --project "\$SIDECAR_DIR" sarathi serve "\$@"
 SHIM
   chmod +x "$dst"
-  echo "staged $dst (uv-run shim — no PyInstaller build found)"
+  echo "staged $dst (dev shim — sidecar at $sidecar_abs)"
 }
 
 mkdir -p "$SRC_TAURI/binaries"

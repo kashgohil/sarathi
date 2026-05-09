@@ -31,6 +31,23 @@ impl SidecarHandle {
     pub fn spawn(app: AppHandle) -> Result<Self> {
         let (program, args, cwd) = resolve_command()?;
 
+        // Emit the resolved command so the user can see exactly what we're
+        // trying to run. Shows up in the Setup screen's diagnostic panel
+        // alongside any stderr output from the spawned process.
+        let _ = app.emit(
+            EVENT_NAME,
+            serde_json::json!({
+                "type": "log",
+                "stream": "stderr",
+                "message": format!(
+                    "spawning sidecar: {} {} (cwd={})",
+                    program,
+                    args.join(" "),
+                    cwd.display()
+                ),
+            }),
+        );
+
         let mut cmd = Command::new(&program);
         cmd.args(&args)
             .current_dir(&cwd)
@@ -162,16 +179,43 @@ async fn writer_loop(mut child: Child, mut stdin: ChildStdin, mut rx: mpsc::Rece
 ///
 /// Priority:
 ///  1. `SARATHI_SIDECAR_BIN` env var (path to a built sidecar binary).
-///  2. Bundled .app: a triple-suffixed `sarathi-sidecar-<triple>` next to
-///     the main app binary.
-///  3. `SARATHI_SIDECAR_CWD` env var → `uv run sarathi serve`.
-///  4. Default: walk up from CARGO_MANIFEST_DIR to find `apps/sidecar`,
-///     spawn `uv run sarathi serve` there.
+///  2. Dev: the sidecar's venv Python at `apps/sidecar/.venv/bin/python`
+///     (created by `uv sync`). Checked *before* any bundled binary,
+///     because in dev Tauri's `externalBin` mechanism copies our shim
+///     to `target/debug/sarathi-sidecar` and we'd rather use the real
+///     interpreter directly than route through a shim. Bypasses `uv`
+///     entirely so we don't depend on `uv` being on the spawned
+///     subprocess's PATH (flaky when Tauri is launched via bun/cargo/
+///     Finder).
+///  3. Bundled .app: a triple-suffixed `sarathi-sidecar-<triple>` next
+///     to the main app binary, OR Tauri-copied `sarathi-sidecar` in
+///     `target/<profile>/`. Used in production where no venv exists.
+///  4. Last resort: `uv run --project <sidecar> sarathi serve`.
 fn resolve_command() -> Result<(String, Vec<String>, PathBuf)> {
     if let Ok(bin) = std::env::var("SARATHI_SIDECAR_BIN") {
         let path = PathBuf::from(bin);
         let cwd = path.parent().map(PathBuf::from).unwrap_or_else(|| ".".into());
         return Ok((path.display().to_string(), vec!["serve".into()], cwd));
+    }
+
+    let cwd = if let Ok(v) = std::env::var("SARATHI_SIDECAR_CWD") {
+        Some(PathBuf::from(v))
+    } else {
+        find_sidecar_dir().ok()
+    };
+
+    // Prefer the venv Python over any bundled binary in dev. Created by
+    // `uv sync --extra ml`. Once it exists, no further `uv` invocation
+    // is needed at runtime.
+    if let Some(ref c) = cwd {
+        let venv_python = c.join(".venv").join("bin").join("python");
+        if venv_python.is_file() {
+            return Ok((
+                venv_python.display().to_string(),
+                vec!["-m".into(), "sarathi.cli".into(), "serve".into()],
+                c.clone(),
+            ));
+        }
     }
 
     if let Ok(exe) = std::env::current_exe() {
@@ -192,12 +236,10 @@ fn resolve_command() -> Result<(String, Vec<String>, PathBuf)> {
         }
     }
 
-    let cwd = if let Ok(v) = std::env::var("SARATHI_SIDECAR_CWD") {
-        PathBuf::from(v)
-    } else {
-        find_sidecar_dir()?
-    };
-
+    // Last fallback: `uv run` — only useful when uv is on PATH and the
+    // venv hasn't been created yet. uv will create the venv and install
+    // deps on first run, which can take minutes.
+    let cwd = cwd.ok_or_else(|| anyhow!("could not locate apps/sidecar"))?;
     Ok((
         "uv".into(),
         vec![
