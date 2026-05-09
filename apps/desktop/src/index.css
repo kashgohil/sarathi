@@ -44,6 +44,13 @@ body {
   font-style: italic;
 }
 
+/* Window dragging is handled explicitly in `lib/drag.ts` via a global
+   mousedown listener that calls Tauri's `startDragging()` directly.
+   We deliberately don't use `-webkit-app-region: drag` here — when both
+   mechanisms are present they fight each other, with the OS-native one
+   sometimes intercepting clicks before our JS handler runs. The single
+   JS path is reliable across React's render lifecycle. */
+
 /* ----------------------------------------------------------------------- */
 /* Splash hero — mirrors the marketing-site hero composition.              */
 /* ----------------------------------------------------------------------- */

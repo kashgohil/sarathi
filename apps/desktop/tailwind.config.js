@@ -49,6 +49,11 @@ export default {
           "splashContent 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both",
         "splash-out":
           "splashOut 600ms cubic-bezier(0.4, 0.0, 0.6, 1) both",
+        // Indeterminate shimmer for the Setup row's progress bar — used
+        // when the download has started but no byte count has arrived
+        // yet, so the user gets motion-feedback that something's happening.
+        "progress-shimmer":
+          "progressShimmer 1.4s ease-in-out infinite",
       },
       keyframes: {
         splashImage: {
@@ -62,6 +67,10 @@ export default {
         splashOut: {
           "0%": { opacity: "1", transform: "scale(1)" },
           "100%": { opacity: "0", transform: "scale(1.04)" },
+        },
+        progressShimmer: {
+          "0%": { left: "-33%" },
+          "100%": { left: "100%" },
         },
       },
     },
