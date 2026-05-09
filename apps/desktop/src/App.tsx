@@ -43,6 +43,9 @@ export default function App() {
   // Setup gate: until `localStorage.sarathi.setupComplete = "true"` we block
   // access to the main app and show the Setup view. The flag gets set after
   // a successful preload (or after the user clicks "Continue anyway").
+  /** Toggle for re-opening the Setup screen as a manage-models view from
+   *  the header. Only meaningful after first-run setup is complete. */
+  const [manageModelsOpen, setManageModelsOpen] = useState<boolean>(false);
   const [setupNeeded, setSetupNeeded] = useState<boolean>(() => {
     try {
       return localStorage.getItem(SETUP_DONE_KEY) !== "true";
@@ -274,12 +277,29 @@ export default function App() {
         className="col-span-2 flex items-center justify-between px-5 pt-2 pb-3 border-b border-page-rule"
         data-tauri-drag-region
       >
-        <div className="flex items-center gap-3">
+        {/* Drag region must be explicit on the inner flex clusters too —
+            Tauri 2's drag-region inheritance through nested flex containers
+            isn't reliable, so we tag every non-interactive wrapper. The
+            brand mark, the wordmark, and the status badge are all
+            draggable; the controls cluster on the right contains buttons
+            and selects which automatically opt out. */}
+        <div className="flex items-center gap-3" data-tauri-drag-region>
           <Wheel size={22} className="text-flame-ember" />
           <div className="font-display text-[1.2rem] text-page">Sarathi</div>
           <StatusBadge status={status} />
         </div>
         <div className="flex items-center gap-3">
+          {/* Re-open the Setup screen for reviewing / re-downloading
+              models. Disabled while recording so we don't yank the
+              audio path out from under an active session. */}
+          <button
+            onClick={() => setManageModelsOpen(true)}
+            disabled={isRecording}
+            className="text-[12.5px] tracking-tight text-page-dim hover:text-page disabled:opacity-50 transition"
+            title="Manage downloaded models"
+          >
+            Models
+          </button>
           <SourceSelector value={source} onChange={setSource} disabled={isRecording} />
           <DocUpload />
           <button
@@ -313,12 +333,18 @@ export default function App() {
 
       <FirstRunOverlay events={modelEvents} />
 
-      {/* Setup gate: until preload reports done (or the user explicitly
-          skips), the Setup view sits on top of everything else and is the
-          only thing the user can interact with. */}
-      {splashDone && setupNeeded && (
+      {/* Setup gate: mounts as soon as we know the user needs it (not gated
+          on splashDone) so it sits *underneath* the splash from frame 0.
+          When splash fades out, what's revealed is Setup, never the main
+          UI — no flash of unset content. Sidecar boots inside Setup's
+          mount effect, so by the time splash dismisses, the sidecar may
+          already be in `ready`. Setup is mandatory: the only exit is the
+          Continue button, which is disabled until every required model
+          is downloaded. */}
+      {setupNeeded && (
         <Setup
-          onDone={() => {
+          mode="setup"
+          onDismiss={() => {
             try {
               localStorage.setItem(SETUP_DONE_KEY, "true");
             } catch {
@@ -326,17 +352,16 @@ export default function App() {
             }
             setSetupNeeded(false);
           }}
-          onSkip={() => {
-            // User explicitly opted out — still flip the flag so we don't
-            // re-show this every launch. Models will load lazily on first
-            // use, surfaced via FirstRunOverlay.
-            try {
-              localStorage.setItem(SETUP_DONE_KEY, "true");
-            } catch {
-              /* ignore */
-            }
-            setSetupNeeded(false);
-          }}
+        />
+      )}
+
+      {/* Manage-models view: same Setup component, "manage" mode. Opened
+          from the header's Models button after first-run setup is done.
+          Always dismissable via Close. */}
+      {!setupNeeded && manageModelsOpen && (
+        <Setup
+          mode="manage"
+          onDismiss={() => setManageModelsOpen(false)}
         />
       )}
 

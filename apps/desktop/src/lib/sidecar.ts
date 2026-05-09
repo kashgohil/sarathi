@@ -55,6 +55,14 @@ export type SidecarEvent =
       elapsed_ms: number;
     }
   | {
+      type: "model_progress";
+      component: string;
+      current_bytes: number;
+      total_bytes: number;
+      /** 0.0 – 100.0 */
+      percent: number;
+    }
+  | {
       type: "model_error";
       component: string;
       label: string;
@@ -65,6 +73,10 @@ export type SidecarEvent =
       type: "preload_done";
       components: Record<string, boolean>;
       ok: boolean;
+    }
+  | {
+      type: "setup_check";
+      components: Record<string, boolean>;
     };
 
 export type Citation = {
@@ -83,6 +95,7 @@ export type SidecarCommand =
   | { type: "question"; text: string }
   | { type: "session"; action: "start" | "end"; id: string; title?: string }
   | { type: "preload"; components?: string[] }
+  | { type: "check_setup" }
   | { type: "shutdown" };
 
 const EVENT_NAME = "sidecar://event";
