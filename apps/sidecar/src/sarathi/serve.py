@@ -353,6 +353,94 @@ def _trigger_retrieve_and_answer(
 
 
 # ---------------------------------------------------------------------------#
+# Setup-check (lookup, no loading)
+# ---------------------------------------------------------------------------#
+
+
+def _check_setup(cfg: Config) -> dict[str, bool]:
+    """Cheap filesystem check: are the model files for each capability
+    already cached locally? No model loading happens here — we only ask
+    the cache whether config.json (or the silero source folder) exists.
+
+    Returns a dict like `{"asr": True, "embed": False, "llm": False}`.
+    Used by the desktop Setup screen to mark already-downloaded
+    capabilities as `done` instead of showing them as pending.
+    """
+    return {
+        "asr": _check_silero_vad() and _check_whisper(cfg),
+        "embed": _check_hf_cache(cfg.section("embed").get("model", "BAAI/bge-m3")),
+        "llm": _check_hf_cache(
+            cfg.section("llm").get("model", "mlx-community/Qwen2.5-7B-Instruct-4bit")
+        ),
+    }
+
+
+def _check_hf_cache(repo_id: str) -> bool:
+    """Probe the HuggingFace hub cache for a model. We try `config.json`
+    which every HF repo has. Falls back to a directory check by repo
+    name if `huggingface_hub` is unavailable."""
+    try:
+        from huggingface_hub import try_to_load_from_cache  # noqa: PLC0415
+        from huggingface_hub.constants import HF_HUB_CACHE  # noqa: PLC0415
+
+        for filename in ("config.json", "model.safetensors.index.json"):
+            try:
+                p = try_to_load_from_cache(repo_id=repo_id, filename=filename)
+            except Exception:
+                continue
+            if isinstance(p, str) and Path(p).exists():
+                return True
+
+        # Last-resort: presence of a snapshot directory under the repo's
+        # cache subtree. Some MLX/quant variants don't have config.json.
+        cache_dir = (
+            Path(HF_HUB_CACHE)
+            / f"models--{repo_id.replace('/', '--')}"
+            / "snapshots"
+        )
+        if cache_dir.is_dir() and any(cache_dir.iterdir()):
+            return True
+        return False
+    except ImportError:
+        # No huggingface_hub installed — best-effort check via default cache.
+        cache_dir = (
+            Path.home()
+            / ".cache"
+            / "huggingface"
+            / "hub"
+            / f"models--{repo_id.replace('/', '--')}"
+        )
+        return cache_dir.is_dir()
+
+
+def _check_whisper(cfg: Config) -> bool:
+    """faster-whisper publishes its model weights at
+    `Systran/faster-whisper-<name>` on the Hub."""
+    name = cfg.section("asr").get("model", "large-v3-turbo")
+    return _check_hf_cache(f"Systran/faster-whisper-{name}")
+
+
+def _check_silero_vad() -> bool:
+    """Silero VAD ships via torch.hub, cached at
+    `~/.cache/torch/hub/snakers4_silero-vad_master`. Newer
+    `silero-vad` pip package vendors weights so this becomes always-true
+    once installed; we treat presence of either path as cached."""
+    candidates = [
+        Path.home() / ".cache" / "torch" / "hub" / "snakers4_silero-vad_master",
+    ]
+    if any(p.is_dir() for p in candidates):
+        return True
+    # The pip-installable `silero-vad` package vendors its model file —
+    # if the package imports successfully, the weights are bundled.
+    try:
+        import silero_vad  # noqa: F401, PLC0415
+
+        return True
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------#
 # Audio command processing
 # ---------------------------------------------------------------------------#
 
@@ -389,83 +477,108 @@ def _preload(cfg: Config, components: list[str]) -> dict[str, bool]:
     `model_loading` / `model_loaded` events themselves, so the frontend
     gets per-component progress for free.
 
-    Failures don't propagate — each component is wrapped so a missing dep
-    or bad download in one doesn't block the others. Returns a per-component
-    success/failure map.
+    Failures don't propagate between components — each is wrapped so a
+    missing dep or bad download in one doesn't block the others. Every
+    failure (whether the warmup raised or returned a falsy value)
+    surfaces as a `model_error` event keyed by the capability name, so
+    the UI can flip the matching row to error instead of leaving the
+    optimistic spinner running.
     """
     results: dict[str, bool] = {}
 
+    def run(capability: str, fn) -> None:
+        try:
+            fn(cfg)
+            results[capability] = True
+        except Exception as e:  # noqa: BLE001
+            _emit_capability_error(capability, e)
+            results[capability] = False
+
     if "asr" in components:
-        results["asr"] = _warmup_asr(cfg)
+        run("asr", _warmup_asr)
     if "embed" in components:
-        results["embed"] = _warmup_embed(cfg)
+        run("embed", _warmup_embed)
     if "llm" in components:
-        results["llm"] = _warmup_llm(cfg)
+        run("llm", _warmup_llm)
     return results
 
 
-def _warmup_asr(cfg: Config) -> bool:
+def _emit_capability_error(capability: str, err: Exception) -> None:
+    """Surface a warmup failure on the matching capability row.
+
+    We translate a few common failure modes into actionable messages —
+    the most frequent one in dev is "[ml] extras aren't installed", which
+    raises an ImportError that the user can't otherwise see from the UI.
+    """
+    raw = str(err) or err.__class__.__name__
+    msg = raw
+    lowered = raw.lower()
+    if isinstance(err, ImportError) or "no module named" in lowered:
+        msg = (
+            "Required ML packages aren't installed in the sidecar. Run "
+            "`uv sync --extra ml` from `apps/sidecar` and retry."
+        )
+    elif "huggingface_hub" in lowered and "401" in lowered:
+        msg = "HuggingFace returned 401 — check your HF_TOKEN if the model is gated."
+    _emit(
+        {
+            "type": "model_error",
+            "component": capability,
+            "label": capability,
+            "error": msg,
+            "elapsed_ms": 0,
+        }
+    )
+
+
+def _warmup_asr(cfg: Config) -> None:
     """Boot the streaming transcriber, which loads silero-vad and whisper.
     Both emit their own `model_loading` events under `asr.vad` / `asr.whisper`.
+    Raises on failure — the caller wraps and surfaces a `model_error`.
     """
-    try:
-        from sarathi.asr.streaming import StreamingTranscriber
-        from sarathi.asr.vad import VadConfig
+    from sarathi.asr.streaming import StreamingTranscriber
+    from sarathi.asr.vad import VadConfig
 
-        asr = cfg.section("asr")
-        vad = cfg.section("vad")
-        StreamingTranscriber(
-            vad=VadConfig(
-                threshold=0.5,
-                min_silence_ms=vad.get("min_silence_ms", 400),
-                max_segment_s=vad.get("max_segment_s", 28),
-                pad_ms=int(vad.get("overlap_s", 1.5) * 1000 / 2),
-            ),
-            model=asr.get("model", "large-v3-turbo"),
-            compute_type=asr.get("compute_type", "int8"),
-            language=(asr.get("language") or None),
-            no_speech_threshold=asr.get("no_speech_threshold", 0.6),
-            condition_on_previous_text=asr.get("condition_on_previous_text", False),
-        )
-        return True
-    except Exception as e:
-        _err(f"asr warmup failed: {e}")
-        return False
+    asr = cfg.section("asr")
+    vad = cfg.section("vad")
+    StreamingTranscriber(
+        vad=VadConfig(
+            threshold=0.5,
+            min_silence_ms=vad.get("min_silence_ms", 400),
+            max_segment_s=vad.get("max_segment_s", 28),
+            pad_ms=int(vad.get("overlap_s", 1.5) * 1000 / 2),
+        ),
+        model=asr.get("model", "large-v3-turbo"),
+        compute_type=asr.get("compute_type", "int8"),
+        language=(asr.get("language") or None),
+        no_speech_threshold=asr.get("no_speech_threshold", 0.6),
+        condition_on_previous_text=asr.get("condition_on_previous_text", False),
+    )
 
 
-def _warmup_embed(cfg: Config) -> bool:
-    try:
-        from sarathi.embed.bge_m3 import embed_query
+def _warmup_embed(cfg: Config) -> None:
+    from sarathi.embed.bge_m3 import embed_query
 
-        embed_query(
-            "warmup",
-            model=cfg.section("embed").get("model", "BAAI/bge-m3"),
-        )
-        return True
-    except Exception as e:
-        _err(f"embed warmup failed: {e}")
-        return False
+    embed_query(
+        "warmup",
+        model=cfg.section("embed").get("model", "BAAI/bge-m3"),
+    )
 
 
-def _warmup_llm(cfg: Config) -> bool:
+def _warmup_llm(cfg: Config) -> None:
     """Load the MLX LLM with a 1-token generation to force model-mmap +
     weight upload to the GPU. The actual output is discarded."""
-    try:
-        from sarathi.llm.mlx_runner import generate
+    from sarathi.llm.mlx_runner import generate
 
-        generate(
-            system="ready",
-            user="ready",
-            model=cfg.section("llm").get(
-                "model", "mlx-community/Qwen2.5-7B-Instruct-4bit"
-            ),
-            max_new_tokens=1,
-            temperature=0.0,
-        )
-        return True
-    except Exception as e:
-        _err(f"llm warmup failed: {e}")
-        return False
+    generate(
+        system="ready",
+        user="ready",
+        model=cfg.section("llm").get(
+            "model", "mlx-community/Qwen2.5-7B-Instruct-4bit"
+        ),
+        max_new_tokens=1,
+        temperature=0.0,
+    )
 
 
 def _ingest_path_event(path: Path, cfg: Config, store) -> None:
@@ -497,23 +610,46 @@ def _ingest_path_event(path: Path, cfg: Config, store) -> None:
 
 
 def _start_vacuum_thread(
-    store, retention_days: int, interval_s: float, stop_event: threading.Event
+    db_path: Path,
+    retention_days: int,
+    interval_s: float,
+    stop_event: threading.Event,
 ) -> threading.Thread:
     """Background thread: every `interval_s`, delete transcripts older than
     `retention_days`. Emits a `vacuumed` event with the deleted row count.
 
-    A separate SQLite connection is created inside the thread because
-    sqlite3 connections are not safe to share across threads by default.
+    The SQLite `Store` is constructed *inside the thread* so its
+    connection is owned by this thread. sqlite3 by default refuses
+    cross-thread use of a connection, and our retention sweep happens
+    far away from the main loop's command thread, so the connection
+    must be born here.
     """
 
     def loop() -> None:
-        # Run a "boot vacuum" first — useful when the app has been closed for
-        # longer than the retention window and starts up with stale rows.
-        if not stop_event.is_set():
-            _vacuum_once(store, retention_days)
+        try:
+            from sarathi.store.sqlite import Store
+        except Exception as e:  # noqa: BLE001
+            _err(f"vacuum thread: cannot import Store: {e}")
+            return
 
-        while not stop_event.wait(interval_s):
-            _vacuum_once(store, retention_days)
+        try:
+            store = Store(db_path)
+        except Exception as e:  # noqa: BLE001
+            _err(f"vacuum thread: cannot open {db_path}: {e}")
+            return
+
+        try:
+            # Boot vacuum first — useful when the app has been closed for
+            # longer than the retention window.
+            if not stop_event.is_set():
+                _vacuum_once(store, retention_days)
+            while not stop_event.wait(interval_s):
+                _vacuum_once(store, retention_days)
+        finally:
+            try:
+                store.close()
+            except Exception:
+                pass
 
     t = threading.Thread(target=loop, name="sarathi-vacuum", daemon=True)
     t.start()
@@ -567,19 +703,17 @@ def serve_loop(cfg: Config) -> int:
     stop_vacuum = threading.Event()
 
     with _open_store(cfg) as store:
-        # SQLite connections aren't shareable across threads — the vacuum
-        # thread opens its own using the same db path.
-        from sarathi.store.sqlite import Store as _Store
-
+        # The vacuum thread opens its own SQLite connection from this path
+        # (sqlite3 refuses cross-thread connection use, and creating one
+        # here on the main thread + handing it off was the bug that
+        # surfaced as "SQLite objects created in a thread can only be used
+        # in that same thread").
         if store is not None:
             paths = cfg.section("paths")
             db_path = cfg.resolve_path(paths.get("data_dir", "data")) / "metadata.db"
-            vacuum_store = _Store(db_path)
             _start_vacuum_thread(
-                vacuum_store, retention_days, vacuum_interval_s, stop_vacuum
+                db_path, retention_days, vacuum_interval_s, stop_vacuum
             )
-        else:
-            vacuum_store = None
 
         for line in sys.stdin:
             line = line.strip()
@@ -598,12 +732,9 @@ def serve_loop(cfg: Config) -> int:
                         _handle_utterances(state, transcriber.flush(), store=store)
                     if state.session_id and store is not None:
                         store.end_session(state.session_id)
+                    # Signal the vacuum thread to exit; it owns its own
+                    # SQLite connection and closes it itself.
                     stop_vacuum.set()
-                    if vacuum_store is not None:
-                        try:
-                            vacuum_store.close()
-                        except Exception:
-                            pass
                     return 0
 
                 if ctype == "audio":
@@ -637,6 +768,14 @@ def serve_loop(cfg: Config) -> int:
                             "type": "preload_done",
                             "components": summary,
                             "ok": all(summary.values()),
+                        }
+                    )
+
+                elif ctype == "check_setup":
+                    _emit(
+                        {
+                            "type": "setup_check",
+                            "components": _check_setup(cfg),
                         }
                     )
 
