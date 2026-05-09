@@ -39,6 +39,9 @@ ml = [
     "paddlepaddle>=2.6",
     "pyannote.audio>=3.3",
     "torch>=2.2",
+    # onnxruntime 1.26.0 shipped without a darwin/arm64 wheel. Pin below it
+    # so silero-vad's transitive dep doesn't pull a broken version.
+    "onnxruntime>=1.20,<1.26",
 ]
 dev = [
     "pytest>=8.2",
@@ -57,6 +60,20 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sarathi"]
+
+[tool.uv]
+# Force the resolver to find package versions that have wheels for every
+# environment listed here. Without this, uv picks the latest of every
+# dep based on its build host, which on macOS can land on releases that
+# only shipped Linux/Windows wheels (e.g. onnxruntime 1.26.0 has no
+# darwin/arm64 wheel — silero-vad would pull it in and break `uv sync`).
+#
+# Apple Silicon only — `mlx` (and by extension `mlx-lm`) doesn't publish
+# x86_64 macOS wheels at all, so listing that env would make resolution
+# unsatisfiable. The product targets M-series Macs, which is fine.
+required-environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 
 [tool.ruff]
 line-length = 100
