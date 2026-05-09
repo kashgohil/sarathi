@@ -42,13 +42,14 @@ def _load_whisper(model_name: str, compute_type: str, device: str):
         raise RuntimeError(
             "faster-whisper is required. Install with: uv sync --extra ml"
         ) from e
-    from sarathi.progress import loading
+    from sarathi.progress import hf_repo_cache, loading
 
     approx = 1000 if "turbo" in model_name else 3000
     with loading(
         "asr.whisper",
         f"Whisper {model_name} ({compute_type})",
         approx_mb=approx,
+        cache_dirs=[hf_repo_cache(f"Systran/faster-whisper-{model_name}")],
     ):
         return WhisperModel(model_name, device=device, compute_type=compute_type)
 

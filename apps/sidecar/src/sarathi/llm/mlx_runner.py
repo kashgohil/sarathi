@@ -32,7 +32,7 @@ def _load(model_name: str):
         raise RuntimeError(
             "mlx-lm is required for LLM inference. Install with: uv sync --extra ml"
         ) from e
-    from sarathi.progress import loading
+    from sarathi.progress import hf_repo_cache, loading
 
     # Rough sizing from the mlx-community 4-bit quants we default to.
     if "14B" in model_name or "14b" in model_name:
@@ -43,7 +43,12 @@ def _load(model_name: str):
         approx = 2000
     else:
         approx = 4000
-    with loading("llm.mlx", f"LLM ({model_name})", approx_mb=approx):
+    with loading(
+        "llm.mlx",
+        f"LLM ({model_name})",
+        approx_mb=approx,
+        cache_dirs=[hf_repo_cache(model_name)],
+    ):
         return load(model_name)
 
 
@@ -69,14 +74,32 @@ def generate(
     ]
     prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
 
-    text = mlx_generate(
-        model_obj,
-        tokenizer,
-        prompt=prompt,
-        max_tokens=max_new_tokens,
-        temp=temperature,
-        verbose=False,
-    )
+    # mlx-lm's generate signature changed around 0.21 — `temp=` was
+    # removed in favour of a sampler object. We try the new API first
+    # (which is what current mlx-lm ships) and fall back to the old
+    # `temp=` keyword for older installs.
+    text: str | object
+    try:
+        from mlx_lm.sample_utils import make_sampler
+
+        sampler = make_sampler(temp=temperature)
+        text = mlx_generate(
+            model_obj,
+            tokenizer,
+            prompt=prompt,
+            max_tokens=max_new_tokens,
+            sampler=sampler,
+            verbose=False,
+        )
+    except (ImportError, TypeError):
+        text = mlx_generate(
+            model_obj,
+            tokenizer,
+            prompt=prompt,
+            max_tokens=max_new_tokens,
+            temp=temperature,
+            verbose=False,
+        )
 
     # mlx_generate returns either a string or a generator depending on version.
     if not isinstance(text, str):
